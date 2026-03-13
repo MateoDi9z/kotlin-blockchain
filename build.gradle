@@ -1,18 +1,6 @@
-plugins {
-    id 'buildlogic.kotlin-common-conventions'
-}
-
 allprojects {
-    group = project.property('group')
-    version = project.property('version')
-}
-
-bootJar {
-    enabled = false
-}
-
-jar {
-    enabled = true
+    group = 'api'
+    version = '0.0.1'
 }
 
 subprojects {
@@ -22,11 +10,12 @@ subprojects {
         mavenCentral()
     }
 
-    tasks.named('bootJar') {
-        enabled = false
-    }
-
-    tasks.named('jar') {
-        enabled = true
+    tasks.named('test') {
+        useJUnitPlatform()
+        testLogging {
+            events "passed", "skipped", "failed"
+            showStandardStreams = true
+            exceptionFormat = 'full'
+        }
     }
 }

@@ -1,6 +1,6 @@
 package api.entities.transaction.rules
 
-import api.entities.transaction.Transaction
+import api.dtos.Transaction
 
 class CompositeTransactionRule(
     private val rules: List<TransactionRule>,

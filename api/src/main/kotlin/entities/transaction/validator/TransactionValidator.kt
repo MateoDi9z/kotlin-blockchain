@@ -1,6 +1,6 @@
 package api.entities.transaction.validator
 
-import api.entities.transaction.Transaction
+import api.dtos.Transaction
 import api.entities.transaction.rules.TransactionRule
 
 class TransactionValidator(
