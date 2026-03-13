@@ -4,10 +4,25 @@ skinparam classAttributeIconSize 0
 class Transaction {
   + String from
   + String to
-  + float amount
+  + double amount
   + String sig
-  + boolean isValid()
+  + boolean isValid(TransactionRule validator)
 }
+
+interface TransactionRule {
+  + boolean isValid(Transaction tx)
+  + String getErrorMessage()
+}
+
+class CompositeTransactionRule {
+  - List<TransactionRule> rules
+  + boolean isValid(Transaction tx)
+  + String getErrorMessage()
+}
+
+class PositiveAmountRule implements TransactionRule
+class SignatureNotEmptyRule implements TransactionRule
+class CryptographicSignatureRule implements TransactionRule
 
 class Block {
   + int index
@@ -18,37 +33,35 @@ class Block {
   + int nonce
   + String calculateHash()
   + void mineBlock(int difficulty)
-  + boolean hasValidTransactions()
 }
 
 class Blockchain {
-  + List<Block> chain
-  + int difficulty
-  + List<Transaction> pendingTransactions
-  + Block createGenesisBlock()
-  + Block getLatestBlock()
-  + void addBlock(Block newBlock)
-  + boolean isChainValid()
+  - List<Block> chain
+  - List<Transaction> pendingTransactions
+  - TransactionRule validator
+  + boolean addBlock(Block newBlock)
+  + boolean createTransaction(Transaction tx)
+  + void minePendingTransactions()
   + boolean resolveConflicts(List<Block> peerChain)
-  + void createTransaction(Transaction transaction)
-  + void minePendingTransactions(String minerAddress)
 }
 
 class Node {
-  + String nodeId
-  + Blockchain blockchain
-  + List<String> peers
-  + void connectToPeer(String peerAddress)
+  - String nodeId
+  - List<String> peers
+  - Blockchain blockchain
+  + void connectToNetwork(String seedUrl)
+  + void onTransactionReceived(Transaction tx)
+  + void onBlockReceived(Block block)
   + void broadcastBlock(Block block)
-  + void receiveBlock(Block block)
-  + void validateAndAddBlock(Block block)
-  + void broadcastTransaction(Transaction transaction)
-  + void syncChainWithPeers()
 }
 
-Blockchain "1" *-- "*" Block : contiene >
-Block "1" *-- "*" Transaction : incluye >
-Node "1" *-- "1" Blockchain : mantiene >
-Node "1" o-- "*" Node : se conecta con >
+' Relationships
+Blockchain "1" *-- "*" Block : contains >
+Blockchain "1" *-- "*" Transaction : pending transactions >
+Blockchain "1" o-- "1" TransactionRule : uses for validation >
+Block "1" *-- "*" Transaction : includes >
+CompositeTransactionRule "1" o-- "*" TransactionRule : groups >
+Node "1" --> "1" Blockchain : uses >
+Node "1" o-- "*" Node : connects with >
 
 @enduml
