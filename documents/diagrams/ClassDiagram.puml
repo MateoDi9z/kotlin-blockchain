@@ -58,9 +58,6 @@ class Node {
   - Blockchain blockchain
   - TransactionValidator validator
   + void connectToNetwork(String seedUrl)
-  + void onTransactionReceived(Transaction transaction)
-  + void onBlockReceived(Block block)
-  + void broadcastBlock(Block block)
 }
 
 ' Relationships
