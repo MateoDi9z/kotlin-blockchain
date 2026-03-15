@@ -1,5 +1,6 @@
 package entities.blockchain
 
+import api.entities.blockchain.results.ChainSyncResult
 import entities.blockchain.results.TransactionAdditionResult
 import api.entities.transaction.rules.PositiveAmountRule
 import entities.block.Block

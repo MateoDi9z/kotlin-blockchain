@@ -1,6 +1,7 @@
 package entities.blockchain
 
 import api.dtos.Transaction
+import api.entities.blockchain.results.ChainSyncResult
 import entities.blockchain.results.TransactionAdditionResult
 import api.entities.transaction.rules.PositiveAmountRule
 import api.entities.transaction.rules.SignatureNotEmptyRule
