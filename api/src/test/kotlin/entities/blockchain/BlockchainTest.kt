@@ -1,8 +1,7 @@
 package entities.blockchain
 
-import api.entities.blockchain.results.TransactionAdditionResult
+import entities.blockchain.results.TransactionAdditionResult
 import api.entities.transaction.rules.PositiveAmountRule
-import entities.Blockchain
 import entities.block.Block
 import entities.transaction.validator.TransactionValidator
 import testutils.TestBuilders

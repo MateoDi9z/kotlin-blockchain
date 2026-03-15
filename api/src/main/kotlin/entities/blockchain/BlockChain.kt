@@ -1,12 +1,11 @@
-package entities
+package entities.blockchain
 
 import api.dtos.Transaction
-import api.entities.blockchain.results.TransactionAdditionResult
+import entities.blockchain.results.TransactionAdditionResult
 import api.entities.transaction.rules.PositiveAmountRule
 import api.entities.transaction.rules.SignatureNotEmptyRule
 import api.entities.transaction.rules.ValidCryptographicSignatureRule
 import entities.block.Block
-import entities.blockchain.ChainSyncResult
 import entities.transaction.validator.TransactionValidator
 
 class Blockchain(

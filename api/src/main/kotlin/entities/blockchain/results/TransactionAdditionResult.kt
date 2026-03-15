@@ -1,4 +1,4 @@
-package api.entities.blockchain.results
+package entities.blockchain.results
 
 sealed class TransactionAdditionResult {
     object Success : TransactionAdditionResult()
