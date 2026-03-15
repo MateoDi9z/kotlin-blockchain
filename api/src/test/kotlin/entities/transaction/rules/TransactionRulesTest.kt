@@ -1,6 +1,7 @@
 package api.entities.transaction.rules
 
 import api.dtos.Transaction
+import api.entities.transaction.validator.TransactionValidator
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kotlin.test.assertFalse
