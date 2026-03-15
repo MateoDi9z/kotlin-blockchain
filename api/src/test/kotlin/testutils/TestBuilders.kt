@@ -1,8 +1,8 @@
 package testutils
 
 import api.dtos.Transaction
-import dtos.BlockDTO
 import entities.block.Block
+import entities.block.BlockMiner
 
 object TestBuilders {
 
@@ -37,16 +37,6 @@ object TestBuilders {
         transactions: List<Transaction> = emptyList(),
     ): Block {
         val b = makeBlock(index = index, transactions = transactions, previousHash = previousHash)
-        return b.mineBlock(difficulty)
+        return BlockMiner.mine(b, difficulty)
     }
-
-    fun toDto(block: Block): BlockDTO =
-        BlockDTO(
-            index = block.index,
-            timestamp = block.timestamp,
-            transactions = block.transactions,
-            previousHash = block.previousHash,
-            hash = block.hash,
-            nonce = block.nonce,
-        )
 }
