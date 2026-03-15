@@ -1,4 +1,4 @@
-package entities.transaction.rules
+package entities.results
 
 data class ValidationResult(
     val isValid: Boolean,
@@ -11,4 +11,8 @@ data class ValidationResult(
         } else {
             "No errors found"
         }
+
+    fun isSuccess(): Boolean = isValid
+
+    fun isFailure(): Boolean = !isValid
 }

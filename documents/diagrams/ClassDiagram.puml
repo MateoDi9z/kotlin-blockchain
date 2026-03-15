@@ -1,73 +1,218 @@
 @startuml
+
 skinparam classAttributeIconSize 0
 
-class Transaction {
-  + String from
-  + String to
-  + double amount
-  + String sig
+package api.dtos {
+    class Transaction << (D, orchid) data >> {
+        + from: String
+        + to: String
+        + amount: Long
+        + signature: String
+    }
 }
 
-interface TransactionRule {
-  + boolean isValid(Transaction transaction)
-  + String getErrorMessage()
+package dtos {
+    class BlockDTO << (D, orchid) data >> {
+        + index: Int
+        + timestamp: Long
+        + transactions: List<Transaction>
+        + previousHash: String
+        + hash: String
+        + nonce: Long
+    }
 }
 
-class CompositeTransactionRule implements TransactionRule {
-  - List<String> errors
-  - List<TransactionRule> rules
-  + boolean isValid(Transaction transaction)
-  + String getErrorMessage()
-  + List<String> getErrorList()
+package api.entities.hash {
+    object Hash {
+        + sha256(input: String): String
+    }
 }
 
-class PositiveAmountRule implements TransactionRule
-class SignatureNotEmptyRule implements TransactionRule
-class CryptographicSignatureRule implements TransactionRule
-
-class TransactionValidator {
-  - TransactionRule rootRule
-  + boolean validate(Transaction transaction)
-  + String getErrors()
+package api.entities {
+    class SignatureCreator << (F, LightBlue) file >> {
+        + createSignature(privateKey: PrivateKey, message: String): String
+        + verifySignature(publicKey: PublicKey?, message: String, signature: String): Boolean
+        + getPublicKeyFromString(keyString: String): PublicKey?
+    }
 }
 
-class Block {
-  + int index
-  + long timestamp
-  + List<Transaction> transactions
-  + String previousHash
-  + String hash
-  + int nonce
-  + String calculateHash()
-  + void mineBlock(int difficulty)
+package entities.block {
+    class Block {
+        + index: Int
+        + timestamp: Long
+        + transactions: List<Transaction>
+        + previousHash: String
+        + hash: String
+        + nonce: Long
+        + calculateHash(nonceToUse: Long): String
+        + mineBlock(difficulty: Int): Block
+        + isValid(difficulty: Int): Boolean
+    }
+
+    object BlockValidator {
+        + validateReceivedBlock(dto: BlockDTO, difficulty: Int, previousBlock: Block, txValidator: TransactionValidator): Boolean
+        - mapToEntity(dto: BlockDTO): Block
+        - verifyTransactions(block: Block, validator: TransactionValidator): Boolean
+    }
 }
 
-class Blockchain {
-  - List<Block> chain
-  - List<Transaction> pendingTransactions
-  - TransactionValidator validator
-  + boolean addBlock(Block newBlock)
-  + boolean createTransaction(Transaction transaction)
-  + void minePendingTransactions()
-  + boolean resolveConflicts(List<Block> peerChain)
+package entities.block.rule {
+    interface BlockRule {
+        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
+        + getErrorMessage(): String
+    }
+
+    class CompositeBlockRule {
+        - rules: List<BlockRule>
+        - lastError: String
+        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
+        + getErrorMessage(): String
+    }
+
+    class ChainLinkRule {
+        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
+        + getErrorMessage(): String
+    }
+
+    class BlockIntegrityRule {
+        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
+        + getErrorMessage(): String
+    }
 }
 
-class Node {
-  - String nodeId
-  - List<String> peers
-  - Blockchain blockchain
-  - TransactionValidator validator
-  + void connectToNetwork(String seedUrl)
+package api.entities.transaction.rules {
+    interface TransactionRule {
+        + isValid(transaction: Transaction): Boolean
+        + getErrorMessage(): String
+    }
+
+    class PositiveAmountRule {
+        + isValid(transaction: Transaction): Boolean
+        + getErrorMessage(): String
+    }
+
+    class ValidCryptographicSignatureRule {
+        + isValid(transaction: Transaction): Boolean
+        + getErrorMessage(): String
+    }
+
+    class SignatureNotEmptyRule {
+        + isValid(transaction: Transaction): Boolean
+        + getErrorMessage(): String
+    }
 }
 
-' Relationships
-Blockchain "1" *-- "*" Block : contains
-Blockchain "1" *-- "*" Transaction : pending transactions
-Block "1" *-- "*" Transaction : includes
-TransactionValidator "1" o-- "1" TransactionRule : uses
-Blockchain "1" --> "1" TransactionValidator : uses for validation
-Node "1" --> "1" Blockchain : manages
-Node "1" --> "1" TransactionValidator : validates incoming traffic
-Node "1" o-- "*" Node : connects to peers
+package entities.transaction.rules {
+    class ValidationResult << (D, orchid) data >> {
+        + isValid: Boolean
+        + errorList: List<String>
+        + getErrors(): String
+    }
+}
+
+package entities.transaction.validator {
+    class TransactionValidator {
+        - rules: List<TransactionRule>
+        + validate(transaction: Transaction): ValidationResult
+    }
+}
+
+package entities.blockchain {
+    class Blockchain {
+        + difficulty: Int
+        - validator: TransactionValidator
+        - _chain: MutableList<Block>
+        + chain: List<Block>
+        - _pendingTransactions: MutableList<Transaction>
+        + pendingTransactions: List<Transaction>
+        - createGenesisBlock(): Block
+        + addTransaction(transaction: Transaction): TransactionAdditionResult
+        + getLatestBlock(): Block
+        + minePendingTransactions(): Block
+        + isChainValid(chainToValidate: List<Block>): Boolean
+        + replaceChain(newChain: List<Block>): ChainSyncResult
+    }
+}
+
+package entities.blockchain.results {
+    interface TransactionAdditionResult <<sealed>>
+
+    object "Success" as TxAdditionSuccess
+
+    class "Rejected" as TxAdditionRejected << (D, orchid) data >> {
+        + errors: String
+    }
+}
+
+package api.entities.blockchain.results {
+    interface ChainSyncResult <<sealed>>
+
+    object "Success" as ChainSyncSuccess
+
+    class "Rejected" as ChainSyncRejected << (D, orchid) data >> {
+        + reason: String
+    }
+}
+
+package api.services {
+    class ExampleService
+}
+
+package api.controllers {
+    class ExampleController
+}
+
+package api.repositories {
+    class ExampleRepository
+}
+
+package api.routes {
+    class ExampleRouter
+}
+
+package api {
+    class ExampleServiceApplication
+
+    class ApplicationRunner << (F, LightBlue) file >> {
+        + main(args: Array<String>)
+    }
+}
+
+' Relaciones - Reglas de Bloques
+CompositeBlockRule ..|> BlockRule
+ChainLinkRule ..|> BlockRule
+BlockIntegrityRule ..|> BlockRule
+CompositeBlockRule o-- "*" BlockRule : contains
+
+' Relaciones - Reglas de Transacciones
+PositiveAmountRule ..|> TransactionRule
+ValidCryptographicSignatureRule ..|> TransactionRule
+SignatureNotEmptyRule ..|> TransactionRule
+
+TransactionValidator o-- "*" TransactionRule : contains
+TransactionValidator ..> ValidationResult : returns
+
+' Dependencias funcionales
+ValidCryptographicSignatureRule ..> SignatureCreator : uses functions
+
+' Relaciones de Results (Sealed Interfaces)
+TxAdditionSuccess ..|> TransactionAdditionResult
+TxAdditionRejected ..|> TransactionAdditionResult
+
+ChainSyncSuccess ..|> ChainSyncResult
+ChainSyncRejected ..|> ChainSyncResult
+
+' Relaciones principales del core
+Blockchain o-- "1" TransactionValidator
+Blockchain *-- "*" Block : chain
+Blockchain o-- "*" Transaction : pendingTransactions
+Blockchain ..> TransactionAdditionResult : returns
+Blockchain ..> ChainSyncResult : returns
+
+Block --> "*" Transaction : contains
+BlockDTO --> "*" Transaction : contains
+
+BlockValidator ..> Block : creates/validates
+BlockValidator ..> BlockDTO : maps from
 
 @enduml

@@ -1,6 +1,7 @@
 package entities.block
 
 import api.entities.transaction.rules.PositiveAmountRule
+import entities.block.rule.BlockValidator
 import entities.transaction.validator.TransactionValidator
 import testutils.TestBuilders
 import kotlin.test.Test

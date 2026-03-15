@@ -1,13 +1,23 @@
 package entities.block.rule
 
 import entities.block.Block
+import entities.results.ValidationResult
 
 class ChainLinkRule : BlockRule {
-    override fun isValid(
+    override fun validate(
         block: Block,
         difficulty: Int,
         previousBlock: Block,
-    ) = block.previousHash == previousBlock.hash
+    ): ValidationResult {
+        val isValid = block.previousHash == previousBlock.hash
 
-    override fun getErrorMessage() = "Validation Failed: Previous hash mismatch."
+        return if (isValid) {
+            ValidationResult(isValid = true, errorList = emptyList())
+        } else {
+            ValidationResult(
+                isValid = false,
+                errorList = listOf("Validation Failed: Previous hash mismatch."),
+            )
+        }
+    }
 }

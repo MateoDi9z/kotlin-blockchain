@@ -1,25 +1,29 @@
 package entities.block.rule
 
 import entities.block.Block
+import entities.results.ValidationResult
 
 class CompositeBlockRule(
     private val rules: List<BlockRule>,
 ) : BlockRule {
-    private var lastError = ""
 
-    override fun isValid(
+    override fun validate(
         block: Block,
         difficulty: Int,
         previousBlock: Block,
-    ): Boolean {
+    ): ValidationResult {
+        val allErrors = mutableListOf<String>()
+
         for (rule in rules) {
-            if (!rule.isValid(block, difficulty, previousBlock)) {
-                lastError = rule.getErrorMessage()
-                return false
+            val result = rule.validate(block, difficulty, previousBlock)
+            if (!result.isValid) {
+                allErrors.addAll(result.errorList)
             }
         }
-        return true
-    }
 
-    override fun getErrorMessage(): String = lastError
+        return ValidationResult(
+            isValid = allErrors.isEmpty(),
+            errorList = allErrors,
+        )
+    }
 }

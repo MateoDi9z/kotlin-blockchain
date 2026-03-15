@@ -2,7 +2,7 @@ package entities.transaction.validator
 
 import api.dtos.Transaction
 import api.entities.transaction.rules.TransactionRule
-import entities.transaction.rules.ValidationResult
+import entities.results.ValidationResult
 
 class TransactionValidator(
     private val rules: List<TransactionRule>,
