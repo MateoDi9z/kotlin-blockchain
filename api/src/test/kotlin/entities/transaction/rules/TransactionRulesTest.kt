@@ -1,7 +1,6 @@
 package entities.transaction.rules
 
 import api.dtos.Transaction
-import api.entities.transaction.rules.CompositeTransactionRule
 import api.entities.transaction.rules.PositiveAmountRule
 import api.entities.transaction.rules.SignatureNotEmptyRule
 import api.entities.transaction.validator.TransactionValidator
@@ -47,23 +46,23 @@ class TransactionRulesTest {
     }
 
     @Test
-    fun compositeTransactionRule_returnsTrueAndNoErrorsWhenAllRulesPass() {
+    fun validatorTransactionRule_returnsTrueAndNoErrorsWhenAllRulesPass() {
         val rules = listOf(PositiveAmountRule(), SignatureNotEmptyRule())
-        val composite = CompositeTransactionRule(rules)
+        val validator = TransactionValidator(rules)
         val tx = Transaction(from = "a", to = "b", amount = 2.5f, signature = "sig")
 
-        assertTrue(composite.isValid(tx))
-        assertEquals("No errors found", composite.getErrorMessage())
-        assertEquals(emptyList<String>(), composite.getErrorList())
+        assertTrue(validator.validate(tx))
+        assertEquals("No errors found", validator.getErrors())
+        assertEquals(emptyList<String>(), validator.getErrorList())
     }
 
     @Test
-    fun compositeTransactionRule_collectsErrorsAndReturnsFalseWhenRulesFail() {
+    fun validatorTransactionRule_collectsErrorsAndReturnsFalseWhenRulesFail() {
         val rules = listOf(PositiveAmountRule(), SignatureNotEmptyRule())
-        val composite = CompositeTransactionRule(rules)
+        val validator = TransactionValidator(rules)
         val tx = Transaction(from = "a", to = "b", amount = 0.0f, signature = "")
 
-        assertFalse(composite.isValid(tx))
+        assertFalse(validator.validate(tx))
 
         val expectedErrors =
             listOf(
@@ -71,8 +70,8 @@ class TransactionRulesTest {
                 "Signature is required for a transaction",
             )
 
-        assertEquals(expectedErrors, composite.getErrorList())
-        assertEquals(expectedErrors.joinToString(" | "), composite.getErrorMessage())
+        assertEquals(expectedErrors, validator.getErrorList())
+        assertEquals(expectedErrors.joinToString(" | "), validator.getErrors())
     }
 
     @Test
@@ -83,7 +82,7 @@ class TransactionRulesTest {
         val tx = Transaction(from = "a", to = "b", amount = 3.0f, signature = "sig")
 
         assertTrue(validator.validate(tx))
-        assertEquals("", validator.getErrors())
+        assertEquals("No errors found", validator.getErrors())
     }
 
     @Test
