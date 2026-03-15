@@ -61,7 +61,7 @@ class TransactionRulesTest {
     fun transactionValidator_returnsFalseAndAggregatesErrorsWhenRulesFail() {
         val rules = listOf(PositiveAmountRule(), SignatureNotEmptyRule())
         val validator = TransactionValidator(rules)
-        val tx = Transaction(from = "a", to = "b", amount = 0, signature = "")
+        val tx = Transaction(from = "a", to = "b", amount = 0L, signature = "")
 
         val result = validator.validate(tx)
 
