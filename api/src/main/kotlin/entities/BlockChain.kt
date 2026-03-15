@@ -18,7 +18,6 @@ class Blockchain(
             ),
         ),
 ) {
-    // 1. SEGURIDAD: Listas privadas mutables, expuestas como públicas de solo lectura
     private val _chain = mutableListOf<Block>()
     val chain: List<Block> get() = _chain.toList()
 
@@ -42,7 +41,6 @@ class Blockchain(
         )
 
     fun addTransaction(transaction: Transaction): Boolean {
-        // 2. CORRECCIÓN: Uso correcto del ValidationResult (Thread-Safe)
         val result = validator.validate(transaction)
 
         if (result.isValid) {
@@ -50,14 +48,12 @@ class Blockchain(
             return true
         }
 
-        println("Invalid transaction: ${result.getErrors()}")
         return false
     }
 
     fun getLatestBlock(): Block = _chain.last()
 
     fun minePendingTransactions() {
-        // Creamos el bloque contenedor sin minar
         val unminedBlock =
             Block(
                 index = getLatestBlock().index + 1,
@@ -66,7 +62,6 @@ class Blockchain(
                 previousHash = getLatestBlock().hash,
             )
 
-        // 3. CORRECCIÓN: Atrapamos el bloque resultante ya minado (Inmutabilidad)
         val minedBlock = unminedBlock.mineBlock(difficulty)
 
         _chain.add(minedBlock)
@@ -80,12 +75,10 @@ class Blockchain(
             val currentBlock = chainToValidate[i]
             val previousBlock = chainToValidate[i - 1]
 
-            // 4. CORRECCIÓN: Usamos isValid() que verifica el hash Y la dificultad (PoW)
             if (!currentBlock.isValid(difficulty)) {
                 return false
             }
 
-            // Verificamos que la cadena no esté rota
             if (currentBlock.previousHash != previousBlock.hash) {
                 return false
             }
@@ -93,7 +86,6 @@ class Blockchain(
         return true
     }
 
-    // Recibe List<Block> genérico para aceptar listas inmutables
     fun replaceChain(newChain: List<Block>) {
         if (newChain.size > _chain.size && isChainValid(newChain)) {
             println("Reemplazando la cadena local por una más larga de la red.")
