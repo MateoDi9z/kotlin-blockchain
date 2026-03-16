@@ -14,7 +14,7 @@ class TransactionTest {
         val tx = tx("X", "Y", 5.0)
 
         assertEquals(5000000, tx.value)
-        assertEquals(5.0, tx.getRealValue())
+        assertEquals(5.0, tx.getRealValue(), 1e-9)
     }
 
     @Test
@@ -22,6 +22,6 @@ class TransactionTest {
         val tx = tx("Xx", "Yy", 4125.2370)
 
         assertEquals(4125237000, tx.value)
-        assertEquals(4125.2370, tx.getRealValue())
+        assertEquals(4125.2370, tx.getRealValue(), 1e-9)
     }
 }
