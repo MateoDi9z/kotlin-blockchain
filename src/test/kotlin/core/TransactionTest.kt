@@ -13,7 +13,7 @@ class TransactionTest {
     fun serialize() {
         val tx = tx("X", "Y", 5.0)
 
-        assertEquals(5000000, tx.value)
+        assertEquals(5000000L, tx.value)
         assertEquals(5.0, tx.getRealValue(), 1e-9)
     }
 
@@ -21,7 +21,7 @@ class TransactionTest {
     fun serialize2() {
         val tx = tx("Xx", "Yy", 4125.2370)
 
-        assertEquals(4125237000, tx.value)
+        assertEquals(4125237000L, tx.value)
         assertEquals(4125.2370, tx.getRealValue(), 1e-9)
     }
 }
