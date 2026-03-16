@@ -18,8 +18,8 @@ class Blockchain(
     fun addTransaction(transaction: Transaction): OperationResult<Unit> =
         transactionPool.addTransaction(transaction)
 
-    fun minePendingTransactions(): Block {
-        val transactionsToMine = transactionPool.extractTransactionsForMining()
+    fun minePendingTransactions(): OperationResult<Block> {
+        val transactionsToMine = transactionPool.pendingTransactions
         val latestBlock = ledger.getLatestBlock()
 
         val unminedBlock =
@@ -31,9 +31,13 @@ class Blockchain(
             )
         val minedBlock = miner.mine(unminedBlock, difficulty)
 
-        ledger.addBlock(minedBlock)
-
-        return minedBlock
+        return when (val result = ledger.addBlock(minedBlock)) {
+            is OperationResult.Success -> {
+                transactionPool.clear()
+                OperationResult.Success(minedBlock)
+            }
+            is OperationResult.Failure -> result
+        }
     }
 
     fun getLatestBlock(): Block = ledger.getLatestBlock()
