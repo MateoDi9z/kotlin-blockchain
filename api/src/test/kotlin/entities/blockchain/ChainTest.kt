@@ -62,6 +62,32 @@ class ChainTest {
     }
 
     @Test
+    fun replaceChain_whenNewChainHasDifferentGenesisBlock_rejectsReplacement() {
+        val localChain = Chain(difficulty = testDifficulty, txValidator = txValidator)
+        val fakeGenesis =
+            Block(
+                index = 0,
+                timestamp = 9999999999L,
+                transactions = emptyList(),
+                previousHash = "malicious",
+                hash = "0xMaliciousGenesisHash",
+                nonce = 0,
+            )
+        val remoteChain = Chain(difficulty = testDifficulty, txValidator = txValidator)
+        val newBlock =
+            miner.mine(
+                Block(fakeGenesis.index + 1, fakeGenesis.timestamp + 1000L, emptyList(), fakeGenesis.hash),
+                testDifficulty,
+            )
+        val newChain = listOf(fakeGenesis, newBlock)
+
+        val result = localChain.replaceChain(newChain)
+
+        assertTrue(result is OperationResult.Failure, "Chain with different genesis should be rejected")
+        assertTrue(result.errors.any { it.contains("genesis") })
+    }
+
+    @Test
     fun replaceChain_whenNewChainIsShorter_rejectsReplacement() {
         val localChain = Chain(difficulty = testDifficulty, txValidator = txValidator)
         val remoteChain = Chain(difficulty = testDifficulty, txValidator = txValidator)

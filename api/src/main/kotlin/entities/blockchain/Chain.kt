@@ -79,6 +79,12 @@ class Chain(
             )
         }
 
+        if (newChain.first() != _blocks.first()) {
+            return OperationResult.Failure(
+                listOf("Received chain has a different genesis block."),
+            )
+        }
+
         if (!isChainValid(newChain)) {
             return OperationResult.Failure(
                 listOf("Received chain contains invalid blocks or broken links."),
