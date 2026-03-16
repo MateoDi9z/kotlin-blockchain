@@ -1,11 +1,9 @@
 package api.entities
 
-import java.security.InvalidKeyException
 import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.Signature
-import java.security.SignatureException
 import java.security.spec.InvalidKeySpecException
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
@@ -33,11 +31,7 @@ fun verifySignature(
         s.update(message.toByteArray())
         val signatureBytes = Base64.getDecoder().decode(signature)
         s.verify(signatureBytes)
-    } catch (e: IllegalArgumentException) {
-        false
-    } catch (e: SignatureException) {
-        false
-    } catch (e: InvalidKeyException) {
+    } catch (e: Exception) {
         false
     }
 }
