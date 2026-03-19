@@ -12,6 +12,9 @@ spring:
     hibernate:
       ddl-auto: update
 
+blockchain:
+  difficulty: 3
+
 management:
   endpoints:
     web:
