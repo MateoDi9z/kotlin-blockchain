@@ -1,5 +1,6 @@
 package api.controller
 
+import api.controllers.NodeController
 import api.dtos.Transaction
 import api.services.NodeService
 import entities.block.Block

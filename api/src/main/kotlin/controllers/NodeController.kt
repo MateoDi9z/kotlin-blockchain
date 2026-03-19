@@ -1,4 +1,4 @@
-package api.controller
+package api.controllers
 
 import api.dtos.Transaction
 import api.services.NodeService
@@ -42,17 +42,14 @@ class NodeController(
     @PostMapping("/transactions")
     fun addTransaction(
         @RequestBody transaction: Transaction,
-    ): ResponseEntity<Any> {
-        val result = nodeService.addTransaction(transaction)
-
-        return when (result) {
+    ): ResponseEntity<Any> =
+        when (val result = nodeService.addTransaction(transaction)) {
             is OperationResult.Success ->
                 ResponseEntity
                     .status(HttpStatus.CREATED)
                     .body(mapOf("message" to "Transacción encolada para el próximo bloque"))
             is OperationResult.Failure -> ResponseEntity.badRequest().body(result.errors)
         }
-    }
 
     @PostMapping("/peers")
     fun registerPeer(
