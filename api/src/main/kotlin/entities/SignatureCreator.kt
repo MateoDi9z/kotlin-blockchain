@@ -1,11 +1,9 @@
 package api.entities
 
-import java.security.InvalidKeyException
 import java.security.KeyFactory
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.Signature
-import java.security.SignatureException
 import java.security.spec.InvalidKeySpecException
 import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
@@ -16,7 +14,7 @@ fun createSignature(
 ): String {
     val s = Signature.getInstance("SHA256withECDSA")
     s.initSign(privateKey)
-    s.update(message.toByteArray())
+    s.update(message.toByteArray(Charsets.UTF_8))
     val signatureBytes = s.sign()
     return Base64.getEncoder().encodeToString(signatureBytes)
 }
@@ -30,14 +28,10 @@ fun verifySignature(
     return try {
         val s = Signature.getInstance("SHA256withECDSA")
         s.initVerify(publicKey)
-        s.update(message.toByteArray())
+        s.update(message.toByteArray(Charsets.UTF_8))
         val signatureBytes = Base64.getDecoder().decode(signature)
         s.verify(signatureBytes)
-    } catch (e: IllegalArgumentException) {
-        false
-    } catch (e: SignatureException) {
-        false
-    } catch (e: InvalidKeyException) {
+    } catch (e: Exception) {
         false
     }
 }

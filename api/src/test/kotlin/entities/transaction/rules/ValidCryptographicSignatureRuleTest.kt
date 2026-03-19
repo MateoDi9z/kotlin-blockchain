@@ -30,7 +30,7 @@ class ValidCryptographicSignatureRuleTest {
         val from = publicKeyString
         val to = "recipient-address"
         val amount = 100L
-        val message = from + to + amount
+        val message = """{"from":"$from","to":"$to","amount":$amount}"""
 
         val signature = createSignature(keyPair.private, message)
         val tx = Transaction(from, to, amount, signature)
@@ -41,7 +41,7 @@ class ValidCryptographicSignatureRuleTest {
     @Test
     fun `False if data was tampered after signing`() {
         val from = publicKeyString
-        val message = from + "bob" + 10L
+        val message = """{"from":"$from","to":"bob","amount":${10}}"""
         val signature = createSignature(keyPair.private, message)
 
         val tamperedTx = Transaction(from, "bob", 500L, signature)
@@ -52,7 +52,7 @@ class ValidCryptographicSignatureRuleTest {
     @Test
     fun `False for a signature from a different private key`() {
         val otherKeyPair = KeyPairGenerator.getInstance("EC").generateKeyPair()
-        val message = publicKeyString + "bob" + 10L
+        val message = """{"from":"$publicKeyString","to":"bob","amount":${10}}"""
 
         val invalidSignature = createSignature(otherKeyPair.private, message)
         val tx = Transaction(publicKeyString, "bob", 10L, invalidSignature)

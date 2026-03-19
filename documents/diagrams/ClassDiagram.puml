@@ -37,7 +37,7 @@ package api.entities {
 }
 
 package entities.block {
-    class Block {
+    class Block << (D, orchid) data >> {
         + index: Int
         + timestamp: Long
         + transactions: List<Transaction>
@@ -45,48 +45,56 @@ package entities.block {
         + hash: String
         + nonce: Long
         + calculateHash(nonceToUse: Long): String
-        + mineBlock(difficulty: Int): Block
-        + isValid(difficulty: Int): Boolean
     }
 
-    object BlockValidator {
-        + validateReceivedBlock(dto: BlockDTO, difficulty: Int, previousBlock: Block, txValidator: TransactionValidator): Boolean
-        - mapToEntity(dto: BlockDTO): Block
-        - verifyTransactions(block: Block, validator: TransactionValidator): Boolean
+    object BlockMapper {
+        + toEntity(dto: BlockDTO): Block
+    }
+
+    object BlockMiner {
+        + mine(unminedBlock: Block, difficulty: Int): Block
     }
 }
 
 package entities.block.rule {
     interface BlockRule {
-        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
-        + getErrorMessage(): String
+        + validate(block: Block, difficulty: Int, previousBlock: Block): ValidationResult
     }
 
     class CompositeBlockRule {
         - rules: List<BlockRule>
-        - lastError: String
-        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
-        + getErrorMessage(): String
+        + validate(block: Block, difficulty: Int, previousBlock: Block): ValidationResult
     }
 
     class ChainLinkRule {
-        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
-        + getErrorMessage(): String
+        + validate(block: Block, difficulty: Int, previousBlock: Block): ValidationResult
     }
 
-    class BlockIntegrityRule {
-        + isValid(block: Block, difficulty: Int, previousBlock: Block): Boolean
-        + getErrorMessage(): String
+    class ValidHashRule {
+        + validate(block: Block, difficulty: Int, previousBlock: Block): ValidationResult
+    }
+
+    class ProofOfWorkRule {
+        + validate(block: Block, difficulty: Int, previousBlock: Block): ValidationResult
+    }
+
+    class TimestampRule {
+        + validate(block: Block, difficulty: Int, previousBlock: Block): ValidationResult
+    }
+
+    class BlockValidator {
+        - rule: BlockRule
+        + validateReceivedBlock(block: Block, difficulty: Int, previousBlock: Block, txValidator: TransactionValidator): ValidationResult
+    }
+
+    object BlockValidatorFactory {
+        + createDefault(): BlockValidator
+        + createWithCustomRules(rules: List<BlockRule>): BlockValidator
     }
 }
 
 package api.entities.transaction.rules {
     interface TransactionRule {
-        + isValid(transaction: Transaction): Boolean
-        + getErrorMessage(): String
-    }
-
-    class PositiveAmountRule {
         + isValid(transaction: Transaction): Boolean
         + getErrorMessage(): String
     }
@@ -103,9 +111,30 @@ package api.entities.transaction.rules {
 }
 
 package entities.transaction.rules {
+    class PositiveAmountRule {
+        + isValid(transaction: Transaction): Boolean
+        + getErrorMessage(): String
+    }
+}
+
+package entities.results {
     class ValidationResult << (D, orchid) data >> {
         + isValid: Boolean
         + errorList: List<String>
+        + getErrors(): String
+        + isSuccess(): Boolean
+        + isFailure(): Boolean
+    }
+
+    interface OperationResult <<sealed>> {
+    }
+
+    class "Success<T>" as OperationSuccess << (D, orchid) data >> {
+        + data: T
+    }
+
+    class "Failure" as OperationFailure << (D, orchid) data >> {
+        + errors: List<String>
         + getErrors(): String
     }
 }
@@ -115,42 +144,38 @@ package entities.transaction.validator {
         - rules: List<TransactionRule>
         + validate(transaction: Transaction): ValidationResult
     }
+
+    object TransactionValidatorFactory {
+        + createDefault(): TransactionValidator
+        + createWithCustomRules(rules: List<TransactionRule>): TransactionValidator
+    }
 }
 
 package entities.blockchain {
     class Blockchain {
         + difficulty: Int
-        - validator: TransactionValidator
-        - _chain: MutableList<Block>
         + chain: List<Block>
-        - _pendingTransactions: MutableList<Transaction>
         + pendingTransactions: List<Transaction>
-        - createGenesisBlock(): Block
-        + addTransaction(transaction: Transaction): TransactionAdditionResult
+        + addTransaction(transaction: Transaction): OperationResult<Unit>
         + getLatestBlock(): Block
         + minePendingTransactions(): Block
+        + replaceChain(newChain: List<Block>): OperationResult<Unit>
+    }
+
+    class Chain {
+        + difficulty: Int
+        + blocks: List<Block>
+        + getLatestBlock(): Block
+        + addBlock(block: Block): OperationResult<Unit>
         + isChainValid(chainToValidate: List<Block>): Boolean
-        + replaceChain(newChain: List<Block>): ChainSyncResult
+        + replaceChain(newChain: List<Block>): OperationResult<Unit>
     }
-}
 
-package entities.blockchain.results {
-    interface TransactionAdditionResult <<sealed>>
-
-    object "Success" as TxAdditionSuccess
-
-    class "Rejected" as TxAdditionRejected << (D, orchid) data >> {
-        + errors: String
-    }
-}
-
-package api.entities.blockchain.results {
-    interface ChainSyncResult <<sealed>>
-
-    object "Success" as ChainSyncSuccess
-
-    class "Rejected" as ChainSyncRejected << (D, orchid) data >> {
-        + reason: String
+    class TransactionPool {
+        + pendingTransactions: List<Transaction>
+        + addTransaction(transaction: Transaction): OperationResult<Unit>
+        + extractTransactionsForMining(): List<Transaction>
+        + clear()
     }
 }
 
@@ -181,8 +206,12 @@ package api {
 ' Relaciones - Reglas de Bloques
 CompositeBlockRule ..|> BlockRule
 ChainLinkRule ..|> BlockRule
-BlockIntegrityRule ..|> BlockRule
+ValidHashRule ..|> BlockRule
+ProofOfWorkRule ..|> BlockRule
+TimestampRule ..|> BlockRule
 CompositeBlockRule o-- "*" BlockRule : contains
+BlockValidator o-- "1" BlockRule : uses
+BlockValidatorFactory ..> BlockValidator : creates
 
 ' Relaciones - Reglas de Transacciones
 PositiveAmountRule ..|> TransactionRule
@@ -191,28 +220,33 @@ SignatureNotEmptyRule ..|> TransactionRule
 
 TransactionValidator o-- "*" TransactionRule : contains
 TransactionValidator ..> ValidationResult : returns
+TransactionValidatorFactory ..> TransactionValidator : creates
 
 ' Dependencias funcionales
 ValidCryptographicSignatureRule ..> SignatureCreator : uses functions
 
-' Relaciones de Results (Sealed Interfaces)
-TxAdditionSuccess ..|> TransactionAdditionResult
-TxAdditionRejected ..|> TransactionAdditionResult
-
-ChainSyncSuccess ..|> ChainSyncResult
-ChainSyncRejected ..|> ChainSyncResult
+' Relaciones de Results (Sealed Interface)
+OperationSuccess ..|> OperationResult
+OperationFailure ..|> OperationResult
 
 ' Relaciones principales del core
-Blockchain o-- "1" TransactionValidator
-Blockchain *-- "*" Block : chain
-Blockchain o-- "*" Transaction : pendingTransactions
-Blockchain ..> TransactionAdditionResult : returns
-Blockchain ..> ChainSyncResult : returns
+Blockchain o-- "1" TransactionPool
+Blockchain o-- "1" Chain
+Chain o-- "1" BlockValidator
+Chain o-- "1" TransactionValidator
+TransactionPool o-- "1" TransactionValidator
+Blockchain ..> OperationResult : returns
+Chain ..> OperationResult : returns
+TransactionPool ..> OperationResult : returns
 
+BlockValidator ..> ValidationResult : returns
+BlockValidator ..> Block : validates
+
+Chain *-- "*" Block : blocks
 Block --> "*" Transaction : contains
 BlockDTO --> "*" Transaction : contains
-
-BlockValidator ..> Block : creates/validates
-BlockValidator ..> BlockDTO : maps from
+BlockMapper ..> Block : creates
+BlockMapper ..> BlockDTO : maps from
+BlockMiner ..> Block : creates
 
 @enduml

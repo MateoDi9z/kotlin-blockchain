@@ -8,9 +8,10 @@ class ValidCryptographicSignatureRule : TransactionRule {
 
     override fun isValid(transaction: Transaction): Boolean {
         val publicKey = getPublicKeyFromString(transaction.from) ?: return false
+        val message = """{"from":"${transaction.from}","to":"${transaction.to}","amount":${transaction.amount}}"""
         return verifySignature(
             publicKey = publicKey,
-            message = transaction.from + transaction.to + transaction.amount,
+            message = message,
             signature = transaction.signature,
         )
     }
