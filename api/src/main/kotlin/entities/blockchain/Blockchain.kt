@@ -1,6 +1,7 @@
 package entities.blockchain
 
 import api.dtos.Transaction
+import kotlin.jvm.JvmName
 import entities.block.Block
 import entities.results.OperationResult
 
@@ -11,6 +12,8 @@ class Blockchain(
 ) {
 
     val chain: List<Block> get() = ledger.blocks
+
+    @get:JvmName("getPendingTransactionsSnapshot")
     val pendingTransactions: List<Transaction> get() = transactionPool.pendingTransactions
 
     fun addTransaction(transaction: Transaction): OperationResult<Unit> =
