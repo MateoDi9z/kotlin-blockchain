@@ -1,5 +1,6 @@
 package api.controllers
 
+import api.dtos.PeerRegistrationRequest
 import api.dtos.Transaction
 import api.services.NodeService
 import entities.block.Block
@@ -18,6 +19,19 @@ class NodeController(
     private val nodeService: NodeService,
 ) {
 
+    @PostMapping("/register")
+    fun registerPeer(
+        @RequestBody request: PeerRegistrationRequest,
+    ): ResponseEntity<Any> {
+        val result = nodeService.handleNewPeerRegistration(request)
+
+        return if (result.isSuccess) {
+            ResponseEntity.ok(result.knownPeers)
+        } else {
+            ResponseEntity.badRequest().body(result.errorMessage)
+        }
+    }
+
     @GetMapping("/blocks")
     fun getChain(): ResponseEntity<List<Block>> {
         val chain = nodeService.getChain()
@@ -33,7 +47,7 @@ class NodeController(
 
         val response =
             mapOf(
-                "message" to "Bloque minado y transmitido a la red con éxito",
+                "message" to "Block mined and broadcast to the network successfully",
                 "block" to minedBlock,
             )
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
@@ -47,7 +61,7 @@ class NodeController(
             is OperationResult.Success ->
                 ResponseEntity
                     .status(HttpStatus.CREATED)
-                    .body(mapOf("message" to "Transacción encolada para el próximo bloque"))
+                    .body(mapOf("message" to "Transaction queued for the next block"))
             is OperationResult.Failure -> ResponseEntity.badRequest().body(result.errors)
         }
 
@@ -55,9 +69,9 @@ class NodeController(
     fun registerPeer(
         @RequestBody payload: Map<String, String>,
     ): ResponseEntity<String> {
-        val url = payload["url"] ?: return ResponseEntity.badRequest().body("Falta el campo 'url'")
+        val url = payload["url"] ?: return ResponseEntity.badRequest().body("Missing 'url' field")
         nodeService.addPeer(url)
-        return ResponseEntity.ok("Peer $url agregado correctamente a la red")
+        return ResponseEntity.ok("Peer $url added to the network successfully")
     }
 
     @PostMapping("/blocks/receive")
@@ -67,7 +81,7 @@ class NodeController(
         when (val result = nodeService.receiveBlock(block)) {
             is OperationResult.Success ->
                 ResponseEntity.ok(
-                    "Bloque aceptado y añadido a la cadena local",
+                    "Block accepted and added to the local chain",
                 )
             is OperationResult.Failure -> ResponseEntity.badRequest().body(result.errors)
         }

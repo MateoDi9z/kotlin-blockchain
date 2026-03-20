@@ -1,7 +1,7 @@
 package entities.transaction.rules
-import api.entities.createSignature
-import api.entities.getPublicKeyFromString
-import api.entities.verifySignature
+import api.entities.SignatureManager.createSignature
+import api.entities.SignatureManager.getPublicKeyFromString
+import api.entities.SignatureManager.verifySignature
 import java.security.KeyPairGenerator
 import java.util.Base64
 import kotlin.test.Test

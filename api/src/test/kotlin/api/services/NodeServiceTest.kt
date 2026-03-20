@@ -1,6 +1,8 @@
 package api.services
 
+import api.configuration.NetworkProperties
 import api.dtos.Transaction
+import api.entities.node.NodeIdentity
 import entities.block.Block
 import entities.block.BlockMiner
 import entities.blockchain.Blockchain
@@ -17,11 +19,20 @@ class NodeServiceTest {
     fun `addTransaction delegates to blockchain`() {
         val rest = mockk<org.springframework.web.client.RestTemplate>(relaxed = true)
         val bc = mockk<Blockchain>(relaxed = true)
+        val nodeId = mockk<NodeIdentity>(relaxed = true)
+        val netProps = NetworkProperties()
 
         val tx = Transaction("a", "b", 1L, "sig")
         every { bc.addTransaction(tx) } returns OperationResult.Success(Unit)
 
-        val svc = NodeService(restTemplate = rest, blockchain = bc, miner = BlockMiner)
+        val svc =
+            NodeService(
+                restTemplate = rest,
+                nodeIdentity = nodeId,
+                networkProps = netProps,
+                blockchain = bc,
+                miner = BlockMiner,
+            )
 
         val result = svc.addTransaction(tx)
 
@@ -32,7 +43,18 @@ class NodeServiceTest {
     @Test
     fun `addPeer and getPeers`() {
         val rest = mockk<org.springframework.web.client.RestTemplate>(relaxed = true)
-        val svc = NodeService(restTemplate = rest, blockchain = Blockchain(difficulty = 1))
+        val nodeId = mockk<NodeIdentity>(relaxed = true)
+        val netProps = NetworkProperties()
+        val svc =
+            NodeService(
+                restTemplate = rest,
+                nodeIdentity = nodeId,
+                networkProps = netProps,
+                blockchain =
+                    Blockchain(
+                        difficulty = 1,
+                    ),
+            )
 
         svc.addPeer("http://peer1")
         svc.addPeer("http://peer2")
@@ -46,11 +68,19 @@ class NodeServiceTest {
     fun `receiveBlock delegates to blockchain`() {
         val rest = mockk<org.springframework.web.client.RestTemplate>(relaxed = true)
         val bc = mockk<Blockchain>(relaxed = true)
+        val nodeId = mockk<NodeIdentity>(relaxed = true)
+        val netProps = NetworkProperties()
         val block = Block(index = 1, timestamp = 1L, transactions = emptyList(), previousHash = "0")
 
         every { bc.addBlock(block) } returns OperationResult.Success(Unit)
 
-        val svc = NodeService(restTemplate = rest, blockchain = bc)
+        val svc =
+            NodeService(
+                restTemplate = rest,
+                nodeIdentity = nodeId,
+                networkProps = netProps,
+                blockchain = bc,
+            )
 
         val result = svc.receiveBlock(block)
 

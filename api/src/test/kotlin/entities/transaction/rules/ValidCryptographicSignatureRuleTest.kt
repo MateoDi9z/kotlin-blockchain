@@ -1,7 +1,7 @@
 package entities.transaction.rules
 
 import api.dtos.Transaction
-import api.entities.createSignature
+import api.entities.SignatureManager.createSignature
 import api.entities.transaction.rules.ValidCryptographicSignatureRule
 import java.security.KeyPair
 import java.security.KeyPairGenerator

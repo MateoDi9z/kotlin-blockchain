@@ -6,7 +6,7 @@ import entities.block.Block
 import entities.results.OperationResult
 
 class Blockchain(
-    val difficulty: Int,
+    val difficulty: Int = 3,
     private val transactionPool: TransactionPool = TransactionPool(),
     private val ledger: Chain = Chain(difficulty),
 ) {

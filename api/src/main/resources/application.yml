@@ -1,19 +1,16 @@
-spring:
-  datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:formatter-db}
-    driver-class-name: org.postgresql.Driver
-    username: ${DB_USER:sa}
-    password: ${DB_PASSWORD:password}
-
-  jpa:
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    show-sql: true
-    generate-ddl: true
-    hibernate:
-      ddl-auto: update
-
 blockchain:
   difficulty: 3
+  bootstrap-nodes:
+    - "http://localhost:8081"
+    - "http://localhost:8082"
+  network:
+    known-peers:
+      - "http://localhost:8081"
+
+node:
+  identity:
+    private-key: ${NODE_PRIVATE_KEY:PON_AQUI_UNA_CLAVE_PRIVADA_DE_PRUEBA_EN_BASE64}
+    public-key: ${NODE_PUBLIC_KEY:PON_AQUI_UNA_CLAVE_PUBLICA_DE_PRUEBA_EN_BASE64}
 
 management:
   endpoints:

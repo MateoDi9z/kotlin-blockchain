@@ -29,5 +29,5 @@ kotlin {
 }
 
 springBoot {
-    mainClass = 'api.ExampleServiceApplicationKt'
+    mainClass = 'api.KotlinBlockchainApplicationKt'
 }

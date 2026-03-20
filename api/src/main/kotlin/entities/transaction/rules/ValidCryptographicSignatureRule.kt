@@ -1,8 +1,8 @@
 package api.entities.transaction.rules
 
 import api.dtos.Transaction
-import api.entities.getPublicKeyFromString
-import api.entities.verifySignature
+import api.entities.SignatureManager.getPublicKeyFromString
+import api.entities.SignatureManager.verifySignature
 
 class ValidCryptographicSignatureRule : TransactionRule {
 
