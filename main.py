@@ -8,19 +8,20 @@ import threading
 from flask import Flask, jsonify, request
 import requests as http_requests
 
+
 # ---------------------------------------------------------------------------
 # Blockchain Core
 # ---------------------------------------------------------------------------
 
 class Block:
-    def __init__(self, index:int, timestamp:int, transactions, prev_hash, hash = "", nonce = 0):
+    def __init__(self, index: int, timestamp: int, transactions, prev_hash, hash="", nonce=0):
         self.index = index
         self.timestamp = timestamp
         self.transactions: list[Transaction] = transactions
         self.prev_hash = prev_hash
         self.hash = hash
         self.nonce = nonce
-        
+
     def to_dict(self):
         return {
             "index": self.index,
@@ -30,16 +31,16 @@ class Block:
             "hash": self.hash,
             "nonce": self.nonce
         }
-        
+
     def __str__(self):
         return json.dumps(self.to_dict(), sort_keys=True)
-    
+
     def __getitem__(self, key):
         return self.to_dict()[key]
 
 
 class Transaction:
-    def __init__(self, from_addr:str, to_addr:str, amount:float, sig:str):
+    def __init__(self, from_addr: str, to_addr: str, amount: float, sig: str):
         self.from_addr = from_addr
         self.to_addr = to_addr
         self.amount = amount
@@ -55,9 +56,10 @@ class Transaction:
 
     def __getitem__(self, key):
         return self.to_dict()[key]
-    
+
     def __str__(self):
         return json.dumps(self.to_dict(), sort_keys=True)
+
 
 DIFFICULTY = 3  # number of leading zeros required in block hash
 
@@ -108,6 +110,16 @@ class Blockchain:
             timestamp = int(time.time())
         nonce = 0
         h = calculate_hash(
+            index,
+            timestamp,
+            transactions,
+            previous_hash,
+            nonce
+        )
+
+        while not hash_valid(h):
+            nonce += 1
+            h = calculate_hash(
                 index,
                 timestamp,
                 transactions,
@@ -115,23 +127,13 @@ class Blockchain:
                 nonce
             )
 
-        while not hash_valid(h):
-            nonce += 1
-            h = calculate_hash(
-                    index,
-                    timestamp,
-                    transactions,
-                    previous_hash,
-                    nonce
-                )
-        
         return Block(
-            index= index,
-            timestamp= timestamp,
-            transactions= transactions,
-            prev_hash= previous_hash,
-            hash= h,
-            nonce= nonce
+            index=index,
+            timestamp=timestamp,
+            transactions=transactions,
+            prev_hash=previous_hash,
+            hash=h,
+            nonce=nonce
         )
 
     def mine_block(self):
@@ -150,11 +152,11 @@ class Blockchain:
             if block.prev_hash != self.chain[-1].hash:
                 self.pending_transactions = txs + self.pending_transactions
                 return None
-            
+
             self.chain.append(block)
         return block
 
-    def add_transaction(self, tx:Transaction):
+    def add_transaction(self, tx: Transaction):
         with self.lock:
             self.pending_transactions.append(tx)
 
@@ -167,19 +169,19 @@ class Blockchain:
         if block.prev_hash != previous_block.hash:
             return False
         computed = calculate_hash(
-                block.index,
-                block.timestamp,
-                block.transactions,
-                block.prev_hash,
-                block.nonce,
-            )
-        
+            block.index,
+            block.timestamp,
+            block.transactions,
+            block.prev_hash,
+            block.nonce,
+        )
+
         if computed != block.hash:
             return False
-        
+
         if not hash_valid(block.hash):
             return False
-        
+
         if block.timestamp > time.time() + 60:
             return False
         return True
@@ -198,10 +200,10 @@ class Blockchain:
         if isinstance(block, dict):
             block = Block(
                 block["index"],
-                block["timestamp"], 
-                block["transactions"], 
-                block["previousHash"], 
-                block["hash"], 
+                block["timestamp"],
+                block["transactions"],
+                block["previousHash"],
+                block["hash"],
                 block["nonce"]
             )
 
@@ -253,7 +255,6 @@ class Blockchain:
         with self.lock:
             self.chain = longest_chain
         return True
-        
 
     # -- P2P helpers --------------------------------------------------------
 
@@ -268,8 +269,9 @@ class Blockchain:
                     json=block,
                     timeout=5,
                 )
-                
+
             except Exception:
+                self.peers.remove(peer)
                 continue
 
     def register_peers(self, peer_urls):
@@ -288,6 +290,7 @@ app = Flask(__name__)
 
 # Configure logging to minimize output
 import logging
+
 app.logger.setLevel(logging.WARNING)
 logging.getLogger('werkzeug').setLevel(logging.WARNING)
 
@@ -304,6 +307,7 @@ def get_chain():
 def get_peers():
     return jsonify({"peers": list(blockchain.peers)})
 
+
 # To register a peer, send a POST request with JSON body: {"peer": "http://localhost:5001"}
 @app.route("/peers", methods=["POST"])
 def register_peer():
@@ -314,11 +318,13 @@ def register_peer():
     blockchain.register_peers([peer])
     return jsonify({"message": f"Peer {peer} registered", "peers": list(blockchain.peers)})
 
+
 @app.route("/pending", methods=["GET"])
 def get_pending():
     with blockchain.lock:
         pending = [tx.to_dict() if hasattr(tx, "to_dict") else tx for tx in blockchain.pending_transactions]
     return jsonify({"pending_transactions": pending, "count": len(pending)})
+
 
 @app.route("/tx", methods=["POST"])
 def new_transaction():
@@ -326,13 +332,13 @@ def new_transaction():
 
     if not all(k in data for k in ("from", "to", "amount", "sig")):
         return jsonify({"error": "Missing fields: from, to, amount, sig"}), 400
-    
-    tx = Transaction (
-            from_addr= data["from"],
-            to_addr= data["to"],
-            amount= data["amount"],
-            sig= data["sig"]
-        )
+
+    tx = Transaction(
+        from_addr=data["from"],
+        to_addr=data["to"],
+        amount=data["amount"],
+        sig=data["sig"]
+    )
     blockchain.add_transaction(tx)
     return jsonify({"message": "Transaction added to pool", "transaction": tx.to_dict()})
 
@@ -341,21 +347,22 @@ def new_transaction():
 def mine():
     if len(blockchain.pending_transactions) == 0:
         return jsonify({"error": "No transactions to mine"}), 400
-    
+
     block = blockchain.mine_block()
 
     if block is None:
         return jsonify({"error": "Mining failed – chain changed during mining"}), 409
-    
+
     blockchain.broadcast_block(block)
-    return jsonify({"message": "Block mined successfully", "block": block.to_dict() if isinstance(block, Block) else block})
+    return jsonify(
+        {"message": "Block mined successfully", "block": block.to_dict() if isinstance(block, Block) else block})
 
 
 @app.route("/block/new", methods=["POST"])
 def receive_block():
     block = request.get_json(force=True)
     required = ["index", "timestamp", "transactions", "previousHash", "hash", "nonce"]
-    
+
     if not all(k in block for k in required):
         return jsonify({"error": "Missing fields: index, timestamp, transactions, previousHash, hash, nonce"}), 400
 
@@ -367,13 +374,13 @@ def receive_block():
 
         if added:
             return jsonify({"message": "Block accepted"})
-        
+
         return jsonify({"error": "Block rejected – invalid"}), 400
-    
+
     elif block["index"] > local_index + 1:
         blockchain.resolve_conflicts()
         return jsonify({"message": "Chain was behind – resolved via consensus"})
-    
+
     else:
         return jsonify({"message": "Block already known"}), 200
 
@@ -397,21 +404,56 @@ def resolve_periodically(interval=30):
         blockchain.resolve_conflicts()
         time.sleep(interval)
 
+
 cmd_functions = {
     "tx": lambda args: blockchain.add_transaction(Transaction(args[0], args[1], float(args[2]), args[3])),
-    "pt": lambda args: print(f"Pending transactions: {[tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in blockchain.pending_transactions]}"),
-    "mine": lambda args: http_requests.post(f"http://localhost:{blockchain.port}/mine", timeout=5),
+    "pt": lambda args: print(
+        f"Pending transactions: {[tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in blockchain.pending_transactions]}"),
+    "mine": lambda args: http_requests.post(f"http://localhost:{blockchain.port}/mine", timeout=10),
     "r": lambda args: blockchain.resolve_conflicts(),
-    "chain": lambda args: print(f"Chain: {[block.to_dict() if isinstance(block, Block) else block for block in blockchain.chain]}"),
+    "chain": lambda args: print(
+        f"Chain: {[block.to_dict() if isinstance(block, Block) else block for block in blockchain.chain]}"),
     "help": lambda args: print_help(),
-    "reg": lambda args: http_requests.post(f"{args[0]}/peers", json={"peer": f"http://localhost:{blockchain.port}"}, timeout=5) and blockchain.register_peers([args[0]]),
+    "reg": lambda args: register_peer_handler(args),
     "peers": lambda args: print(f"Peers: {list(blockchain.peers)}"),
     "s": lambda args: print_status(),
     "port": lambda args: print(f"Port: {blockchain.port}")
 }
 
+def get_my_ip():
+    import socket
+    
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))  # No hace falta que exista conexión real
+    ip_local = s.getsockname()[0]
+    s.close()
+    
+    return ip_local
+
+def register_peer_handler(args):
+    if not args or not len(args):
+        return
+    
+    my_ip = get_my_ip()
+    print(f"Registering peer: {args[0]}")
+    my_url = f"http://{my_ip}:{blockchain.port}"
+    
+    try:
+        x = http_requests.post(
+            f"{args[0]}/peers", 
+            json={"peer": my_url},
+            timeout=5) 
+        
+    except Exception as e:
+        print(f"Error registering peer: {e}")
+        return False
+    
+    y = blockchain.register_peers([args[0]])
+    return x and y
+
 def print_help():
-    print(f"  Current chain length: {len(blockchain.chain)}, pending transactions: {len(blockchain.pending_transactions)}")
+    print(
+        f"  Current chain length: {len(blockchain.chain)}, pending transactions: {len(blockchain.pending_transactions)}")
     print(f"  Latest block hash: {blockchain.chain[-1]['hash']}, nonce: {blockchain.chain[-1]['nonce']}")
     print(f"  Peers: {list(blockchain.peers)}")
     print(f"  To make a transaction type tx with args from, to, amount, sig (e.g. tx alice bob 10 signature)")
@@ -422,11 +464,14 @@ def print_help():
     print(f"  To register a peer type reg with the peer URL (e.g. reg http://localhost:5001)")
     print(f"  To show this help message type help")
     print(f"  To exit type q")
-    
+
+
 def print_status():
-    print(f"  Current chain length: {len(blockchain.chain)}, pending transactions: {len(blockchain.pending_transactions)}")
+    print(
+        f"  Current chain length: {len(blockchain.chain)}, pending transactions: {len(blockchain.pending_transactions)}")
     print(f"  Latest block hash: {blockchain.chain[-1]['hash']}, nonce: {blockchain.chain[-1]['nonce']}")
     print(f"  Peers: {list(blockchain.peers)}")
+
 
 def cli_loop():
     while True:
@@ -434,17 +479,18 @@ def cli_loop():
 
         cmd = input("Enter command: ").strip().lower()
         cmd_parts = cmd.split()
-        
+
         if not cmd_parts:
             continue
-        
+
         cmd_key = cmd_parts[0]
         cmd_args = cmd_parts[1:]
-        
+
         cmd_functions.get(cmd_key, lambda args: print("Unknown command"))(cmd_args)
         if cmd_key == "q":
             print("Exiting...")
             break
+
 
 def main():
     parser = argparse.ArgumentParser(description="Blockchain P2P Node")
@@ -461,9 +507,9 @@ def main():
     if args.peers:
         for p in args.peers.split(","):
             p = p.strip()
-            
+
             if not p: continue
-            
+
             blockchain.register_peers([p])
 
     print(f"  Starting node on port {args.port}")
@@ -471,18 +517,20 @@ def main():
     print(f"  Peers: {list(blockchain.peers)}")
     print(f"  Difficulty: {DIFFICULTY} (leading zeros)")
     print(f"  Genesis block hash: {blockchain.chain[0]['hash']}")
-    
+
     import threading
-    
+
     resolve_task = threading.Thread(target=resolve_periodically, kwargs={"interval": 30}, daemon=True)
-    app_task = threading.Thread(target=app.run, kwargs={"host": args.host, "port": args.port, "debug": False, "use_reloader": False}, daemon=True)
+    app_task = threading.Thread(target=app.run,
+                                kwargs={"host": args.host, "port": args.port, "debug": False, "use_reloader": False},
+                                daemon=True)
 
     resolve_task.start()
     app_task.start()
-    
+
     cli_loop()
 
-    #wait for the cli task terminate (when user types 'q')
+    # wait for the cli task terminate (when user types 'q')
     print("Shutting down node...")
     resolve_task.join(timeout=.1)
     app_task.join(timeout=.1)
