@@ -11,7 +11,13 @@ Blockchain peer-to-peer con interfaz de línea de comandos (CLI).
 ## Instalación
 
 ```bash
-pip install flask requests
+python -m venv venv
+source ./venv/bin/activate
+```
+
+
+```bash
+pip install -r requirements.txt
 ```
 
 ## Iniciar el nodo
