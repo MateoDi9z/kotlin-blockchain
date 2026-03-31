@@ -1,5 +1,7 @@
 import json
 
+from utils import TRANSACTION_TYPE
+
 
 class Block:
     def __init__(self, index: int, timestamp: int, transactions, prev_hash, hash="", nonce=0):
@@ -32,7 +34,10 @@ class Transaction:
         self.from_addr = from_addr
         self.to_addr = to_addr
         self.amount = amount
-        self.sig = sig
+        self.timestamp = int(time.time())
+        self.type = TRANSACTION_TYPE.TRANSFER
+        self.public_key = "" # For simplicity, we use the from_addr as the public key
+        self.sig = sig #BASE64_SIGNATURE
 
     def to_dict(self):
         return {

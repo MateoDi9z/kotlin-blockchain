@@ -4,7 +4,11 @@ import time
 
 
 DIFFICULTY = 4  # number of leading zeros required in block hash
+TRANSACTIONS_PER_BLOCK = 5
 
+class TRANSACTION_TYPE:
+    TRANSFER = "TRANSFER"
+    COINBASE = "COINBASE"
 
 def calculate_hash(index: int, timestamp: int, transactions: list, previous_hash: str, nonce: int) -> str:
     """SHA-256 hash of the block contents (everything except the hash itself)."""
