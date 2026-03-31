@@ -3,7 +3,7 @@ import json
 import time
 
 
-DIFFICULTY = 3  # number of leading zeros required in block hash
+DIFFICULTY = 4  # number of leading zeros required in block hash
 
 
 def calculate_hash(index: int, timestamp: int, transactions: list, previous_hash: str, nonce: int) -> str:
