@@ -4,6 +4,7 @@ from typing import Any
 
 import requests as http_requests
 
+from crypto import get_canonical_payload, verify_signature
 from models import Block, Transaction
 from utils import calculate_hash, hash_valid
 
@@ -86,6 +87,22 @@ class Blockchain:
             self.pending_transactions.append(tx)
 
     # -- Validation ---------------------------------------------------------
+    @staticmethod
+    def validate_transaction(tx):
+        if tx.type == "COINBASE":
+            return True
+
+        payload = get_canonical_payload(
+            tx.from_addr,
+            tx.to_addr,
+            tx.amount,
+            tx.timestamp
+        )
+
+        is_valid = verify_signature(payload, tx.signature, tx.from_addr)
+
+        return is_valid
+
 
     @staticmethod
     def validate_block(block: Block, previous_block: Block):
