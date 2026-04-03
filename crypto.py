@@ -1,6 +1,7 @@
 import base64
 from eth_account import Account
 from eth_account.messages import encode_defunct
+from eth_keys import keys
 
 
 def create_wallet():
@@ -17,6 +18,31 @@ def create_wallet():
         "public_key": acct._key_obj.public_key.to_hex()
     }
 
+
+def get_address_from_public_key(public_key_hex: str) -> str:
+    """
+    Takes a Public Key in hexadecimal format and derives its Address (0x...).
+    """
+    if public_key_hex.startswith('0x'):
+        public_key_hex = public_key_hex[2:]
+
+    pk_bytes = bytes.fromhex(public_key_hex)
+
+    public_key_obj = keys.PublicKey(pk_bytes)
+
+    return public_key_obj.to_address()
+
+
+def validate_from_matches_public_key(from_address: str, public_key_hex: str) -> bool:
+    """
+    Strictly validates that the 'from' address is the mathematical owner of the 'publicKey'.
+    """
+    try:
+        derived_address = get_address_from_public_key(public_key_hex)
+
+        return from_address.lower() == derived_address.lower()
+    except Exception:
+        return False
 
 def get_canonical_payload(from_addr: str, to_addr: str, amount: int, timestamp: int) -> str:
     """
