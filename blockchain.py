@@ -4,7 +4,7 @@ import requests as http_requests
 
 from typing import Any
 from models import Block, Transaction
-from utils import calculate_hash, hash_valid
+from utils import calculate_hash, hash_valid, TRANSACTION_TYPE
 
 
 class Blockchain:
@@ -118,6 +118,18 @@ class Blockchain:
 
         if block.timestamp > time.time() + 60:
             return False
+
+        if not block.transactions:
+            return False
+
+        if block.transactions[0].get("type") != TRANSACTION_TYPE.COINBASE:
+            print("Block rejected: First transaction is not COINBASE")
+            return False
+
+        for tx in block.transactions[1:]:
+            if tx.get("type") == TRANSACTION_TYPE.COINBASE:
+                print("Block rejected: Multiple COINBASE transactions found")
+                return False
         return True
 
     @staticmethod
