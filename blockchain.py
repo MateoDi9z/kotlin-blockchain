@@ -4,6 +4,7 @@ from typing import Any
 
 import requests as http_requests
 
+from crypto import get_canonical_payload, verify_signature, validate_from_matches_public_key
 from models import Block, Transaction
 from utils import calculate_hash, hash_valid
 
@@ -32,7 +33,7 @@ class Blockchain:
 
     def _mine_raw_block(self, index: int, transactions: list, previous_hash: str, timestamp: int = None) -> Block:
         if timestamp is None:
-            timestamp = int(time.time())
+            timestamp = int(time.time() * 1000)
         nonce = 0
         h = calculate_hash(
             index,
@@ -85,7 +86,107 @@ class Blockchain:
         with self.lock:
             self.pending_transactions.append(tx)
 
-    # -- Validation ---------------------------------------------------------
+    # -- Balance calculation --
+
+    def get_balance(self, address: str) -> int:
+        """Calculate an account's balance by scanning the blockchain and the mempool."""
+        balance = 0
+
+        # 1. Add/subtract from blocks already mined in the chain
+        for block in self.chain:
+            for tx in block.transactions:
+                # Handle both Transaction objects and dictionaries
+                tx_from = tx.get("from") if isinstance(tx, dict) else tx.from_addr
+                tx_to = tx.get("to") if isinstance(tx, dict) else tx.to_addr
+                tx_amount = tx.get("amount") if isinstance(tx, dict) else tx.amount
+
+                if tx_to == address:
+                    balance += tx_amount
+                if tx_from == address:
+                    balance -= tx_amount
+
+        # 2. Subtract amounts already spent in pending transactions (prevents quick double-spend)
+        for tx in self.pending_transactions:
+            tx_from = tx.get("from") if isinstance(tx, dict) else tx.from_addr
+            tx_amount = tx.get("amount") if isinstance(tx, dict) else tx.amount
+
+            if tx_from == address:
+                balance -= tx_amount
+
+        return balance
+
+    # -- Helper functions for transaction validation --
+
+    @staticmethod
+    def _validate_basic_rules(tx) -> bool:
+        """Basic logical rules: amount > 0 and from != to"""
+        if tx.amount <= 0:
+            print("Error: Amount must be greater than 0")
+            return False
+
+        if tx.from_addr == tx.to_addr:
+            print("Error: 'from' and 'to' cannot be the same address")
+            return False
+
+        return True
+
+    @staticmethod
+    def _validate_ownership(tx) -> bool:
+        """Validate that: from matches the address derived from the public key"""
+        if not validate_from_matches_public_key(tx.from_addr, tx.public_key):
+            print("Error: 'from' does not match the public key")
+            return False
+        return True
+
+    @staticmethod
+    def _validate_signature(tx) -> bool:
+        """Verify the cryptographic signature against the canonical payload"""
+        payload = get_canonical_payload(
+            tx.from_addr,
+            tx.to_addr,
+            tx.amount,
+            tx.timestamp
+        )
+        if not verify_signature(payload, tx.signature, tx.from_addr):
+            print("Error: Invalid cryptographic signature")
+            return False
+        return True
+
+    def _validate_balance(self, tx) -> bool:
+        """Verify that the sender has sufficient funds"""
+        if self.get_balance(tx.from_addr) < tx.amount:
+            print(f"Error: Insufficient balance. Account {tx.from_addr} does not have {tx.amount} coins.")
+            return False
+        return True
+
+    # -- Main transaction validation --
+
+    def validate_transaction(self, tx) -> bool:
+        """Strictly execute all TP1 validation rules"""
+
+        # 1. Special rule: COINBASE is validated together with other rules in the block
+        if tx.type == "COINBASE":
+            return True
+
+        # 2. amount > 0 and from != to
+        if not self._validate_basic_rules(tx):
+            return False
+
+        # 3. publicKey mathematically derives to the from address
+        if not self._validate_ownership(tx):
+            return False
+
+        # 4. valid signature
+        if not self._validate_signature(tx):
+            return False
+
+        # 5. sufficient balance
+        if not self._validate_balance(tx):
+            return False
+
+        return True
+
+    # -- Block and chain validation ----------------------------------------
 
     @staticmethod
     def validate_block(block: Block, previous_block: Block):
@@ -107,8 +208,11 @@ class Blockchain:
         if not hash_valid(block.hash):
             return False
 
-        if block.timestamp > time.time() + 60:
+        # FIXED: Compare milliseconds against milliseconds (+ 60,000 ms)
+        current_time_ms = int(time.time() * 1000)
+        if block.timestamp > current_time_ms + 60000:
             return False
+
         return True
 
     @staticmethod
