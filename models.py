@@ -1,5 +1,4 @@
 import json
-import time
 
 from utils import TRANSACTION_TYPE
 
@@ -42,7 +41,6 @@ class Transaction:
 
     def to_dict(self):
         return {
-            "type": self.type,
             "from": self.from_addr,
             "to": self.to_addr,
             "amount": self.amount,
