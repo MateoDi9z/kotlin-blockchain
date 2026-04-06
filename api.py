@@ -22,7 +22,11 @@ def get_chain():
 
 @app.route("/peers", methods=["GET"])
 def get_peers():
-    return jsonify({"peers": list(blockchain.peers)})
+    return jsonify({
+        "status": "ok",
+        "peers": list(blockchain.peers),
+        "count": len(blockchain.peers)
+    })
 
 
 # To register a peer, send a POST request with JSON body: {"peer": "http://localhost:5001"}
