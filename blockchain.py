@@ -4,6 +4,7 @@ from typing import Any
 
 import requests as http_requests
 
+from crypto import get_canonical_payload, verify_signature, validate_from_matches_public_key
 from models import Block, Transaction
 from utils import calculate_hash, hash_valid
 
@@ -84,8 +85,40 @@ class Blockchain:
     def add_transaction(self, tx: Transaction):
         with self.lock:
             self.pending_transactions.append(tx)
+        # (No-op helpers here: validation helpers are defined as
+        # class-level static methods below.)
+
+    # -- Validation Helper ---------------------------------------------------------
+    @staticmethod
+    def _validate_ownership(tx) -> bool:
+        """Validate that: from == address(publicKey)"""
+        return validate_from_matches_public_key(tx.from_addr, tx.public_key)
+
+    @staticmethod
+    def _validate_signature(tx) -> bool:
+        """Verify the cryptographic signature with the canonical payload"""
+        payload = get_canonical_payload(
+            tx.from_addr,
+            tx.to_addr,
+            tx.amount,
+            tx.timestamp
+        )
+        return verify_signature(payload, tx.signature, tx.from_addr)
 
     # -- Validation ---------------------------------------------------------
+    @staticmethod
+    def validate_transaction(tx) -> bool:
+        if tx.type == "COINBASE":
+            return True
+
+        if not Blockchain._validate_ownership(tx):
+            return False
+
+        if not Blockchain._validate_signature(tx):
+            return False
+
+        return True
+
 
     @staticmethod
     def validate_block(block: Block, previous_block: Block):
@@ -204,6 +237,8 @@ class Blockchain:
             if peer_url in self.peers:
                 continue
             self.peers.add(peer_url.rstrip("/"))
+
+
 
 
 # Global blockchain instance
