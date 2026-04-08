@@ -113,7 +113,7 @@ class Blockchain:
         if computed != block.hash:
             return False
 
-        if not block.hash.startswith("0" * DIFFICULTY):
+        if not hash_valid(block.hash):
             return False
 
         if block.index == 0:
