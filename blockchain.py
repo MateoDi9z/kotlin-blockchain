@@ -4,6 +4,7 @@ from typing import Any
 
 import requests as http_requests
 
+from crypto import get_canonical_payload, verify_signature, validate_from_matches_public_key
 from models import Block, Transaction
 from utils import calculate_hash, hash_valid, TRANSACTION_TYPE
 
@@ -23,7 +24,7 @@ class Blockchain:
         genesis = self._mine_raw_block(
             index=0,
             transactions=[],
-            previous_hash="0" * 64,
+            previous_hash="0",
             timestamp=0,
         )
         self.chain.append(genesis)
@@ -32,7 +33,7 @@ class Blockchain:
 
     def _mine_raw_block(self, index: int, transactions: list, previous_hash: str, timestamp: int = None) -> Block:
         if timestamp is None:
-            timestamp = int(time.time())
+            timestamp = int(time.time() * 1000)
         nonce = 0
         h = calculate_hash(
             index,
@@ -84,8 +85,40 @@ class Blockchain:
     def add_transaction(self, tx: Transaction):
         with self.lock:
             self.pending_transactions.append(tx)
+        # (No-op helpers here: validation helpers are defined as
+        # class-level static methods below.)
+
+    # -- Validation Helper ---------------------------------------------------------
+    @staticmethod
+    def _validate_ownership(tx) -> bool:
+        """Validate that: from == address(publicKey)"""
+        return validate_from_matches_public_key(tx.from_addr, tx.public_key)
+
+    @staticmethod
+    def _validate_signature(tx) -> bool:
+        """Verify the cryptographic signature with the canonical payload"""
+        payload = get_canonical_payload(
+            tx.from_addr,
+            tx.to_addr,
+            tx.amount,
+            tx.timestamp
+        )
+        return verify_signature(payload, tx.signature, tx.from_addr)
 
     # -- Validation ---------------------------------------------------------
+    @staticmethod
+    def validate_transaction(tx) -> bool:
+        if tx.type == "COINBASE":
+            return True
+
+        if not Blockchain._validate_ownership(tx):
+            return False
+
+        if not Blockchain._validate_signature(tx):
+            return False
+
+        return True
+
 
     @staticmethod
     def validate_block(block: Block, previous_block: Block = None):
@@ -109,13 +142,12 @@ class Blockchain:
             block.prev_hash,
             block.nonce,
         )
-        
+
         if computed != block.hash:
             return False
 
         if not hash_valid(block.hash):
             return False
-
         if block.index == 0:
             if block.prev_hash != "0":
                 return False
@@ -157,7 +189,11 @@ class Blockchain:
                 if get_tx_field(tx, 'type') != TRANSACTION_TYPE.TRANSFER:
                     return False
 
-            return True
+        current_time_ms = int(time.time() * 1000)
+        if block.timestamp > current_time_ms + 60000:
+            return False
+
+        return True
 
     @staticmethod
     def validate_chain(chain: list[Block]):
@@ -256,6 +292,8 @@ class Blockchain:
             if peer_url in self.peers:
                 continue
             self.peers.add(peer_url.rstrip("/"))
+
+
 
 
 # Global blockchain instance
