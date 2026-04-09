@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 import logging
 
+from utils import TRANSACTION_TYPE, get_my_ip
 from blockchain import blockchain
 from models import Block, Transaction
 
@@ -46,7 +47,6 @@ def get_chain():
         chain = [block.to_dict() if isinstance(block, Block) else block for block in blockchain.chain]
     return ApiResponse().ok("Chain retrieved successfully", {"chain": chain, "length": len(chain)})
 
-
 @app.route("/peers", methods=["GET"])
 def get_peers():
     return jsonify({
@@ -56,15 +56,20 @@ def get_peers():
     })
 
 
-# To register a peer, send a POST request with JSON body: {"peer": "http://localhost:5001"}
 @app.route("/peers", methods=["POST"])
 def register_peer():
     data = request.get_json(force=True)
-    peer = data.get("peer")
+    peer = data.get("peer") or data.get("url")  # Support both formats just in case
+
     if not peer:
-        return jsonify({"error": "peer field required"}), 400
+        return jsonify({"status": "error", "error": {"code": "MISSING_PEER", "message": "Peer URL required"}}), 400
+
     blockchain.register_peers([peer])
-    return jsonify({"message": f"Peer {peer} registered", "peers": list(blockchain.peers)})
+    return jsonify({
+        "status": "ok",
+        "registered": peer,
+        "peers": list(blockchain.peers)
+    })
 
 
 @app.route("/pending", methods=["GET"])
@@ -74,27 +79,61 @@ def get_pending():
     return jsonify({"pending_transactions": pending, "count": len(pending)})
 
 
-@app.route("/tx", methods=["POST"])
+@app.route("/transactions", methods=["POST"])
 def new_transaction():
     data = request.get_json(force=True)
 
-    if not all(k in data for k in ("from", "to", "amount", "sig")):
-        return jsonify({"error": "Missing fields: from, to, amount, sig"}), 400
+    required_fields = ["id", "type", "from", "to", "amount", "publicKey", "signature", "timestamp"]
+    if not all(k in data for k in required_fields):
+        return jsonify({
+            "status": "error",
+            "error": {
+                "code": "MISSING_FIELDS",
+                "message": "Missing required fields"
+            }
+        }), 400
+
+    # TP1 Standard: Mempool does not accept COINBASE directly
+    if data.get("type") == TRANSACTION_TYPE.COINBASE:
+        return jsonify({
+            "status": "error",
+            "error": {
+                "code": "INVALID_TYPE",
+                "message": "COINBASE transactions are not accepted via API"
+            }
+        }), 400
 
     tx = Transaction(
         from_addr=data["from"],
         to_addr=data["to"],
-        amount=data["amount"],
-        sig=data["sig"]
+        amount=int(data["amount"]),
+        public_key=data["publicKey"],
+        signature=data["signature"],
+        tx_type=data["type"],
+        tx_id=data["id"],
+        timestamp=data["timestamp"]
     )
-    blockchain.add_transaction(tx)
-    return jsonify({"message": "Transaction added to pool", "transaction": tx.to_dict()})
+
+    # add_transaction will return True if valid and newly added, False if duplicate or invalid
+    if blockchain.add_transaction(tx):
+        return jsonify({
+            "status": "ok",
+            "accepted": True,
+            "txId": tx.id
+        }), 202
+    else:
+        # It's either invalid or already exists. Return standard error.
+        return jsonify({
+            "status": "error",
+            "error": {
+                "code": "REJECTED_TRANSACTION",
+                "message": "Transaction invalid or already processed"
+            }
+        }), 400
 
 
 @app.route("/mine", methods=["POST"])
 def mine():
-    if len(blockchain.pending_transactions) == 0:
-        return ApiResponse().error("No transactions to mine"), 400
 
     block = blockchain.mine_block()
 
@@ -112,31 +151,58 @@ def mine():
     return ApiResponse().ok("Block mined successfully", data), 200
 
 
-@app.route("/block/new", methods=["POST"])
+# Changed from /block/new to /blocks strictly matching TP1 standards
+@app.route("/blocks", methods=["POST"])
 def receive_block():
     block = request.get_json(force=True)
     required = ["index", "timestamp", "transactions", "previousHash", "hash", "nonce"]
 
     if not all(k in block for k in required):
-        return jsonify({"error": "Missing fields: index, timestamp, transactions, previousHash, hash, nonce"}), 400
+        return jsonify({
+            "status": "error",
+            "error": {
+                "code": "MISSING_FIELDS",
+                "message": "Missing required block fields"
+            }
+        }), 400
 
     with blockchain.lock:
         local_index = blockchain.chain[-1].index
 
+    # Attempt to append
     if block["index"] == local_index + 1:
         added = blockchain.add_block(block)
 
         if added:
-            return jsonify({"message": "Block accepted"})
-
-        return jsonify({"error": "Block rejected – invalid"}), 400
+            return jsonify({
+                "status": "ok",
+                "accepted": True,
+                "action": "appended",
+                "chainLength": len(blockchain.chain)
+            }), 200
+        else:
+            return jsonify({
+                "status": "error",
+                "error": {
+                    "code": "INVALID_BLOCK",
+                    "message": "Block validation failed"
+                }
+            }), 400
 
     elif block["index"] > local_index + 1:
         blockchain.resolve_conflicts()
-        return jsonify({"message": "Chain was behind – resolved via consensus"})
+        return jsonify({
+            "status": "ok",
+            "accepted": False,
+            "action": "resolved_via_consensus"
+        }), 200
 
     else:
-        return jsonify({"message": "Block already known"}), 200
+        return jsonify({
+            "status": "ok",
+            "accepted": False,
+            "action": "ignored"
+        }), 200
 
 
 @app.route("/resolve", methods=["GET"])
@@ -147,3 +213,31 @@ def consensus():
     if replaced:
         return jsonify({"message": "Chain replaced", "chain": chain})
     return jsonify({"message": "Local chain is authoritative", "chain": chain})
+
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/status", methods=["GET"])
+def node_status():
+    with blockchain.lock:
+        chain_length = len(blockchain.chain)
+        latest_hash = blockchain.chain[-1].hash if chain_length > 0 else ""
+
+    return jsonify({
+        "status": "ok",
+        "node": {
+            "url": f"http://{get_my_ip()}:{blockchain.port}",
+            "address": "0x0000000000000000000000000000000000000000",  # Placeholder según requerimientos
+            "publickey": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "chain": {
+            "length": chain_length,
+            "latestHash": latest_hash
+        },
+        "peers": {
+            "count": len(blockchain.peers)
+        }
+    }), 200
