@@ -5,6 +5,36 @@ from blockchain import blockchain
 from models import Block, Transaction
 from utils import TRANSACTION_TYPE, get_my_ip
 
+
+class ApiResponse:
+    def __init__(self, status: str, message: str, data=None):
+        self.status = status
+        self.message = message
+        self.data = data
+    
+    def __init__(self):
+        self.status = ""
+        self.message = ""
+        self.data = None
+
+    def to_dict(self):
+        response = {"status": self.status, "message": self.message}
+        if self.data is not None:
+            response = {**response, **self.data}
+        return jsonify(response)
+    
+    def ok(self, message: str, data=None):
+        self.status = "ok"
+        self.message = message
+        self.data = data
+        return self.to_dict()
+    
+    def error(self, message: str, data=None):
+        self.status = "error"
+        self.message = message
+        self.data = data
+        return self.to_dict()
+
 app = Flask(__name__)
 
 # Configure logging to minimize output
@@ -107,26 +137,23 @@ def new_transaction():
 
 @app.route("/mine", methods=["POST"])
 def mine():
+    if len(blockchain.pending_transactions) == 0:
+        return ApiResponse().error("No transactions to mine"), 400
+
     block = blockchain.mine_block()
 
     if block is None:
-        return jsonify({
-            "status": "error",
-            "error": {
-                "code": "MINING_FAILED",
-                "message": "Chain changed during mining process"
-            }
-        }), 409
+        return ApiResponse().error("Mining failed – chain changed during mining"), 409
 
-    # Trigger broadcast explicitly since it was mined locally
     blockchain.broadcast_block(block)
-
-    return jsonify({
-        "status": "ok",
-        "mined": True,
-        "trigger": "manual",
-        "block": block.to_dict() if isinstance(block, Block) else block
-    }), 200
+    
+    data = {
+        'mined': True,
+        'trigger': 'manual',
+        'block': block.to_dict() if isinstance(block, Block) else block
+    }
+    
+    return ApiResponse().ok("Block mined successfully", data), 200
 
 
 # Changed from /block/new to /blocks strictly matching TP1 standards
