@@ -235,7 +235,6 @@ class Blockchain:
 
         first_tx = block.transactions[0]
 
-        # Validar COINBASE exacta
         if get_tx_field(first_tx, 'type') != TRANSACTION_TYPE.COINBASE: return False
         if get_tx_field(first_tx, 'from') != "SYSTEM": return False
         if int(get_tx_field(first_tx, 'amount')) != 10: return False
@@ -246,8 +245,6 @@ class Blockchain:
 
         for tx in block.transactions[1:]:
             if get_tx_field(tx, 'type') != TRANSACTION_TYPE.TRANSFER: return False
-            # Las reglas criptográficas (firmas) ya se validan en el mempool antes de minar.
-
         return True
 
     @staticmethod
