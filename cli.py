@@ -1,9 +1,13 @@
+import re
 import time
+import uuid
 import socket
 import requests as http_requests
 
 from blockchain import blockchain
+from crypto import get_canonical_payload, sign_payload
 from models import Transaction, Block
+from utils import TRANSACTION_TYPE
 
 
 def resolve_periodically(interval=30):
@@ -12,9 +16,95 @@ def resolve_periodically(interval=30):
         time.sleep(interval)
 
 
+def normalize_eth_address(addr: str) -> str | None:
+    """Acepta 0x + 40 hex o solo 40 hex (el input del CLI ya viene en minúsculas)."""
+    a = addr.strip().lower()
+    if re.fullmatch(r"0x[0-9a-f]{40}", a):
+        return a
+    if re.fullmatch(r"[0-9a-f]{40}", a):
+        return "0x" + a
+    return None
+
+
+def tx_handler(args):
+    """TRANSFER firmada con la wallet del nodo: tx <to> <amount>"""
+    if len(args) < 2:
+        print("  Uso: tx <direccion_destino> <monto>")
+        print("  Ejemplo: tx 0x14f63d9393d3b9d3182d245f3f5ddfba7b4452e1 7")
+        return
+    if not blockchain.miner_private_key or not blockchain.miner_address:
+        print("  Error: no hay clave de firma del nodo (reinicia con NODE_PRIVATE_KEY o wallet generada).")
+        return
+
+    to_addr = normalize_eth_address(args[0])
+    if not to_addr:
+        print("  Error: dirección destino inválida (esperado 0x + 40 caracteres hex).")
+        return
+
+    try:
+        amount = int(args[1])
+    except ValueError:
+        print("  Error: el monto debe ser un entero.")
+        return
+
+    if amount <= 0:
+        print("  Error: el monto debe ser > 0.")
+        return
+
+    if to_addr == blockchain.miner_address:
+        print("  Error: origen y destino no pueden coincidir.")
+        return
+
+    ts = int(time.time() * 1000)
+    tx_id = str(uuid.uuid4())
+    from_addr = blockchain.miner_address
+    payload = get_canonical_payload(from_addr, to_addr, amount, ts)
+    sig = sign_payload(blockchain.miner_private_key, payload)
+    pub = blockchain.miner_public_key or ""
+    pub_hex = pub if pub.startswith("0x") else f"0x{pub}"
+
+    tx = Transaction(
+        from_addr=from_addr,
+        to_addr=to_addr,
+        amount=amount,
+        public_key=pub_hex,
+        signature=sig,
+        tx_type=TRANSACTION_TYPE.TRANSFER,
+        tx_id=tx_id,
+        timestamp=ts,
+    )
+
+    if blockchain.add_transaction(tx):
+        print(f"  TX aceptada  id={tx_id}")
+        print(f"  {from_addr} -> {to_addr}  amount={amount}")
+    else:
+        print("  TX rechazada (balance insuficiente, duplicada o validación fallida).")
+
+
+def balance_handler(args):
+    """Muestra el saldo de la wallet del nodo. Uso opcional: balance <0x...> para otra dirección."""
+    if args:
+        addr = normalize_eth_address(args[0])
+        if not addr:
+            print("  Error: dirección inválida. Uso: balance [0x...]")
+            return
+    else:
+        addr = blockchain.miner_address
+        if not addr:
+            print("  Error: identidad del nodo no cargada.")
+            return
+
+    on_chain = blockchain.get_chain_balance(addr)
+    spendable = blockchain.get_balance(addr)
+    print(f"  Dirección: {addr}")
+    print(f"  Confirmado en cadena: {on_chain}")
+    print(f"  Disponible para gastar (tras pendientes): {spendable}")
+
+
 cmd_functions = {
-    "tx": lambda args: blockchain.add_transaction(Transaction(args[0], args[1], int(args[2]), args[3], args[4])) if len(
-        args) >= 5 else print("Error: Faltan argumentos. Uso: tx <from> <to> <amount> <publicKey> <signature>"),
+    "tx": tx_handler,
+    "balance": balance_handler,
+    "b": balance_handler,
     "pt": lambda args: print(
         f"Pending transactions: {[tx.to_dict() if hasattr(tx, 'to_dict') else tx for tx in blockchain.pending_transactions]}"),
     "mine": lambda args: http_requests.post(f"http://localhost:{blockchain.port}/mine", timeout=10),
@@ -46,8 +136,8 @@ def register_peer_handler(args):
     
     try:
         x = http_requests.post(
-            f"{args[0]}/peers", 
-            json={"peer": my_url},
+            f"{args[0]}/peers",
+            json={"url": my_url},
             timeout=5) 
         
     except Exception as e:
@@ -62,7 +152,8 @@ def print_help():
         f"  Current chain length: {len(blockchain.chain)}, pending transactions: {len(blockchain.pending_transactions)}")
     print(f"  Latest block hash: {blockchain.chain[-1]['hash']}, nonce: {blockchain.chain[-1]['nonce']}")
     print(f"  Peers: {list(blockchain.peers)}")
-    print(f"  To make a transaction type tx with args from, to, amount, sig (e.g. tx alice bob 10 signature)")
+    print(f"  tx <direccion_0x> <monto>  — envía desde la wallet de este nodo (firmado automático)")
+    print(f"  balance  o  b  — saldo de tu nodo;  balance <0x...>  — saldo de otra dirección")
     print(f"  To show pending transactions type pt")
     print(f"  To mine a block type mine")
     print(f"  To resolve conflicts type r")

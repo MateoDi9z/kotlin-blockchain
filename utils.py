@@ -1,9 +1,9 @@
 import hashlib
 import socket
 
-DIFFICULTY = 4  # number of leading zeros required in block hash
-TRANSACTIONS_PER_BLOCK = 5
-AUTO_MINE_THRESHOLD = 3
+DIFFICULTY = 4  # number of leading zeros required in block hash (hash debe empezar con 0000)
+AUTO_MINE_THRESHOLD = 3  # auto-minado al llegar a 3 TRANSFER pendientes
+BLOCK_REWARD = 10
 
 class TRANSACTION_TYPE:
     TRANSFER = "TRANSFER"
@@ -28,6 +28,12 @@ def calculate_hash(index: int, timestamp: int, transactions: list, previous_hash
 
 def hash_valid(hash_value):
     return hash_value.startswith("0" * DIFFICULTY)
+
+
+def is_placeholder_zeros(s: str) -> bool:
+    if not isinstance(s, str) or not s.strip():
+        return False
+    return all(c == "0" for c in s.strip())
 
 
 def get_my_ip():

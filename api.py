@@ -8,14 +8,12 @@ from utils import TRANSACTION_TYPE, get_my_ip
 
 class ApiResponse:
     def ok(self, data=None):
-        """Genera el formato de éxito. Si hay data, la fusiona en la raíz."""
         response = {"status": "ok"}
         if data is not None:
             response.update(data)
         return jsonify(response)
 
     def error(self, code: str, message: str):
-        """Genera estrictamente el formato de error de la sección 9.1 del TP"""
         return jsonify({
             "status": "error",
             "error": {
@@ -53,7 +51,7 @@ def register_peer():
     peer = data.get("peer") or data.get("url")
 
     if not peer:
-        return ApiResponse().error("MISSING_PEER", "peer field required"), 400
+        return ApiResponse().error("MISSING_PEER", "url field required (base URL http://HOST:PORT)"), 400
 
     blockchain.register_peers([peer])
     return ApiResponse().ok({
@@ -73,12 +71,15 @@ def get_pending():
 def new_transaction():
     data = request.get_json(force=True)
 
-    if not all(k in data for k in ("from", "to", "amount", "signature", "publicKey", "timestamp")):
+    required = ("id", "type", "from", "to", "amount", "signature", "publicKey", "timestamp")
+    if not all(k in data for k in required):
         return ApiResponse().error("MISSING_FIELDS", "Missing fields in transaction"), 400
 
-    # Evitamos que entren COINBASE por la API (Regla TP1)
     if data.get("type") == TRANSACTION_TYPE.COINBASE:
         return ApiResponse().error("INVALID_TYPE", "COINBASE transactions are not accepted via API"), 400
+
+    if data.get("type") != TRANSACTION_TYPE.TRANSFER:
+        return ApiResponse().error("INVALID_TYPE", "Only TRANSFER is accepted via POST /transactions"), 400
 
     tx = Transaction(
         from_addr=data["from"],
@@ -86,9 +87,9 @@ def new_transaction():
         amount=int(data["amount"]),
         public_key=data["publicKey"],
         signature=data["signature"],
-        tx_type=data.get("type", TRANSACTION_TYPE.TRANSFER),
-        tx_id=data.get("id"),
-        timestamp=data["timestamp"]
+        tx_type=TRANSACTION_TYPE.TRANSFER,
+        tx_id=data["id"],
+        timestamp=data["timestamp"],
     )
 
     if blockchain.add_transaction(tx):
@@ -168,11 +169,17 @@ def node_status():
         chain_length = len(blockchain.chain)
         latest_hash = blockchain.chain[-1].hash if chain_length > 0 else ""
 
+    pk = blockchain.miner_public_key or ""
+    if pk and not pk.startswith("0x"):
+        pk_out = f"0x{pk}"
+    else:
+        pk_out = pk or ""
+
     return ApiResponse().ok({
         "node": {
             "url": f"http://{get_my_ip()}:{blockchain.port}",
-            "address": "0x0000000000000000000000000000000000000000",
-            "publickey": "0000000000000000000000000000000000000000000000000000000000000000"
+            "address": blockchain.miner_address or "",
+            "publicKey": pk_out,
         },
         "chain": {
             "length": chain_length,
