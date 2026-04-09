@@ -107,7 +107,6 @@ def new_transaction():
 
 @app.route("/mine", methods=["POST"])
 def mine():
-    # TP1: We can mine an empty block containing only COINBASE if mempool is empty
     block = blockchain.mine_block()
 
     if block is None:
