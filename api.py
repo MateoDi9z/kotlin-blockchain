@@ -3,13 +3,14 @@ import logging
 
 from blockchain import blockchain
 from models import Block, Transaction
+from utils import TRANSACTION_TYPE, get_my_ip
 
 class ApiResponse:
     def __init__(self, status: str, message: str, data=None):
         self.status = status
         self.message = message
         self.data = data
-    
+
     def __init__(self):
         self.status = ""
         self.message = ""
@@ -20,19 +21,19 @@ class ApiResponse:
         if self.data is not None:
             response = {**response, **self.data}
         return jsonify(response)
-    
+
     def to_error_dict(self):
         response = {"status": self.status, "message": self.message}
         if self.data is not None:
             response = {**response, "error": {**self.data}}
         return jsonify(response)
-    
+
     def ok(self, message: str, data=None):
         self.status = "ok"
         self.message = message
         self.data = data
         return self.to_dict()
-    
+
     def error(self, message: str, data=None):
         self.status = "error"
         self.message = message
@@ -56,7 +57,7 @@ def get_chain():
 @app.route("/peers", methods=["GET"])
 def get_peers():
     return ApiResponse().ok(
-        "Peers retrieved successfully", 
+        "Peers retrieved successfully",
         {"peers": list(blockchain.peers), "count": len(blockchain.peers)}
         )
 
@@ -65,7 +66,8 @@ def get_peers():
 @app.route("/peers", methods=["POST"])
 def register_peer():
     data = request.get_json(force=True)
-    peer = data.get("peer")
+    peer = data.get("peer") or data.get("url")  # Support both formats just in case
+
     if not peer:
         return ApiResponse().error("peer field required"), 400
     blockchain.register_peers([peer])
@@ -79,7 +81,7 @@ def get_pending():
     return ApiResponse().ok("Pending transactions retrieved successfully", {"pending_transactions": pending, "count": len(pending)})
 
 
-@app.route("/tx", methods=["POST"])
+@app.route("/transactions", methods=["POST"])
 def new_transaction():
     data = request.get_json(force=True)
 
@@ -89,8 +91,12 @@ def new_transaction():
     tx = Transaction(
         from_addr=data["from"],
         to_addr=data["to"],
-        amount=data["amount"],
-        sig=data["sig"]
+        amount=int(data["amount"]),
+        public_key=data["publicKey"],
+        signature=data["signature"],
+        tx_type=data["type"],
+        tx_id=data["id"],
+        timestamp=data["timestamp"]
     )
     blockchain.add_transaction(tx)
     return ApiResponse().ok("Transaction added to pool", {"transaction": tx.to_dict()})
@@ -107,13 +113,13 @@ def mine():
         return ApiResponse().error("Mining failed – chain changed during mining"), 409
 
     blockchain.broadcast_block(block)
-    
+
     data = {
         'mined': True,
         'trigger': 'manual',
         'block': block.to_dict() if isinstance(block, Block) else block
     }
-    
+
     return ApiResponse().ok("Block mined successfully", data), 200
 
 
@@ -152,3 +158,30 @@ def consensus():
     if replaced:
         return ApiResponse().ok("Chain replaced", {"chain": chain})
     return ApiResponse().ok("Local chain is authoritative", {"chain": chain})
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
+
+
+@app.route("/status", methods=["GET"])
+def node_status():
+    with blockchain.lock:
+        chain_length = len(blockchain.chain)
+        latest_hash = blockchain.chain[-1].hash if chain_length > 0 else ""
+
+    return jsonify({
+        "status": "ok",
+        "node": {
+            "url": f"http://{get_my_ip()}:{blockchain.port}",
+            "address": "0x0000000000000000000000000000000000000000",  # Placeholder según requerimientos
+            "publickey": "0000000000000000000000000000000000000000000000000000000000000000"
+        },
+        "chain": {
+            "length": chain_length,
+            "latestHash": latest_hash
+        },
+        "peers": {
+            "count": len(blockchain.peers)
+        }
+    }), 200
