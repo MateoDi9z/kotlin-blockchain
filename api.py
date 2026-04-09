@@ -18,7 +18,7 @@ class ApiResponse:
     def to_dict(self):
         response = {"status": self.status, "message": self.message}
         if self.data is not None:
-            response["data"] = self.data
+            response = {**response, **self.data}
         return jsonify(response)
     
     def ok(self, message: str, data=None):
@@ -105,11 +105,12 @@ def mine():
     blockchain.broadcast_block(block)
     
     data = {
-        'block': block.to_dict() if isinstance(block, Block) else block,
-        'triggered_by': request.remote_addr
+        'mined': True,
+        'trigger': 'manual',
+        'block': block.to_dict() if isinstance(block, Block) else block
     }
     
-    return ApiResponse().ok("Block mined successfully", data)
+    return ApiResponse().ok("Block mined successfully", data), 200
 
 
 @app.route("/block/new", methods=["POST"])
