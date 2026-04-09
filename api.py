@@ -21,6 +21,12 @@ class ApiResponse:
             response = {**response, **self.data}
         return jsonify(response)
     
+    def to_error_dict(self):
+        response = {"status": self.status, "message": self.message}
+        if self.data is not None:
+            response = {**response, "error": {**self.data}}
+        return jsonify(response)
+    
     def ok(self, message: str, data=None):
         self.status = "ok"
         self.message = message
@@ -31,7 +37,7 @@ class ApiResponse:
         self.status = "error"
         self.message = message
         self.data = data
-        return self.to_dict()
+        return self.to_error_dict()
 
 app = Flask(__name__)
 
@@ -49,11 +55,10 @@ def get_chain():
 
 @app.route("/peers", methods=["GET"])
 def get_peers():
-    return jsonify({
-        "status": "ok",
-        "peers": list(blockchain.peers),
-        "count": len(blockchain.peers)
-    })
+    return ApiResponse().ok(
+        "Peers retrieved successfully", 
+        {"peers": list(blockchain.peers), "count": len(blockchain.peers)}
+        )
 
 
 # To register a peer, send a POST request with JSON body: {"peer": "http://localhost:5001"}
@@ -62,16 +67,16 @@ def register_peer():
     data = request.get_json(force=True)
     peer = data.get("peer")
     if not peer:
-        return jsonify({"error": "peer field required"}), 400
+        return ApiResponse().error("peer field required"), 400
     blockchain.register_peers([peer])
-    return jsonify({"message": f"Peer {peer} registered", "peers": list(blockchain.peers)})
+    return ApiResponse().ok(f"Peer {peer} registered", {"registered": peer, "peers": list(blockchain.peers)})
 
 
 @app.route("/pending", methods=["GET"])
 def get_pending():
     with blockchain.lock:
         pending = [tx.to_dict() if hasattr(tx, "to_dict") else tx for tx in blockchain.pending_transactions]
-    return jsonify({"pending_transactions": pending, "count": len(pending)})
+    return ApiResponse().ok("Pending transactions retrieved successfully", {"pending_transactions": pending, "count": len(pending)})
 
 
 @app.route("/tx", methods=["POST"])
@@ -79,7 +84,7 @@ def new_transaction():
     data = request.get_json(force=True)
 
     if not all(k in data for k in ("from", "to", "amount", "sig")):
-        return jsonify({"error": "Missing fields: from, to, amount, sig"}), 400
+        return ApiResponse().error("Missing fields: from, to, amount, sig"), 400
 
     tx = Transaction(
         from_addr=data["from"],
@@ -88,7 +93,7 @@ def new_transaction():
         sig=data["sig"]
     )
     blockchain.add_transaction(tx)
-    return jsonify({"message": "Transaction added to pool", "transaction": tx.to_dict()})
+    return ApiResponse().ok("Transaction added to pool", {"transaction": tx.to_dict()})
 
 
 @app.route("/mine", methods=["POST"])
@@ -118,7 +123,7 @@ def receive_block():
     required = ["index", "timestamp", "transactions", "previousHash", "hash", "nonce"]
 
     if not all(k in block for k in required):
-        return jsonify({"error": "Missing fields: index, timestamp, transactions, previousHash, hash, nonce"}), 400
+        return ApiResponse().error("Missing fields: index, timestamp, transactions, previousHash, hash, nonce"), 400
 
     with blockchain.lock:
         local_index = blockchain.chain[-1].index
@@ -127,16 +132,16 @@ def receive_block():
         added = blockchain.add_block(block)
 
         if added:
-            return jsonify({"message": "Block accepted"})
+            return ApiResponse().ok("Block accepted")
 
-        return jsonify({"error": "Block rejected – invalid"}), 400
+        return ApiResponse().error("Block rejected – invalid"), 400
 
     elif block["index"] > local_index + 1:
         blockchain.resolve_conflicts()
-        return jsonify({"message": "Chain was behind – resolved via consensus"})
+        return ApiResponse().ok("Chain was behind – resolved via consensus", None)
 
     else:
-        return jsonify({"message": "Block already known"}), 200
+        return ApiResponse().ok("Block already known"), 200
 
 
 @app.route("/resolve", methods=["GET"])
@@ -145,5 +150,5 @@ def consensus():
     with blockchain.lock:
         chain = list(blockchain.chain)
     if replaced:
-        return jsonify({"message": "Chain replaced", "chain": chain})
-    return jsonify({"message": "Local chain is authoritative", "chain": chain})
+        return ApiResponse().ok("Chain replaced", {"chain": chain})
+    return ApiResponse().ok("Local chain is authoritative", {"chain": chain})
