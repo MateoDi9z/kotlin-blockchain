@@ -4,6 +4,34 @@ import logging
 from blockchain import blockchain
 from models import Block, Transaction
 
+class ApiResponse:
+    def __init__(self, status: str, message: str, data=None):
+        self.status = status
+        self.message = message
+        self.data = data
+    
+    def __init__(self):
+        self.status = ""
+        self.message = ""
+        self.data = None
+
+    def to_dict(self):
+        response = {"status": self.status, "message": self.message}
+        if self.data is not None:
+            response["data"] = self.data
+        return jsonify(response)
+    
+    def ok(self, message: str, data=None):
+        self.status = "ok"
+        self.message = message
+        self.data = data
+        return self.to_dict()
+    
+    def error(self, message: str, data=None):
+        self.status = "error"
+        self.message = message
+        self.data = data
+        return self.to_dict()
 
 app = Flask(__name__)
 
@@ -67,16 +95,21 @@ def new_transaction():
 @app.route("/mine", methods=["POST"])
 def mine():
     if len(blockchain.pending_transactions) == 0:
-        return jsonify({"error": "No transactions to mine"}), 400
+        return ApiResponse().error("No transactions to mine"), 400
 
     block = blockchain.mine_block()
 
     if block is None:
-        return jsonify({"error": "Mining failed – chain changed during mining"}), 409
+        return ApiResponse().error("Mining failed – chain changed during mining"), 409
 
     blockchain.broadcast_block(block)
-    return jsonify(
-        {"message": "Block mined successfully", "block": block.to_dict() if isinstance(block, Block) else block})
+    
+    data = {
+        'block': block.to_dict() if isinstance(block, Block) else block,
+        'triggered_by': request.remote_addr
+    }
+    
+    return ApiResponse().ok("Block mined successfully", data)
 
 
 @app.route("/block/new", methods=["POST"])
