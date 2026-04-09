@@ -21,6 +21,11 @@ class Blockchain:
 
         self.lock = threading.Lock()
         self.port = None
+
+        # Identidad del nodo (se inicializa en main.py)
+        self.node_address = "0x0000000000000000000000000000000000000000"
+        self.node_public_key = "0000000000000000000000000000000000000000000000000000000000000000"
+
         self._create_genesis_block()
 
     # -- Genesis block ------------------------------------------------------
@@ -68,16 +73,16 @@ class Blockchain:
             nonce=nonce
         )
 
-    def mine_block(self, miner_address="MINER_NODE_ADDRESS"):
+    def mine_block(self):
         with self.lock:
             block_timestamp = int(time.time() * 1000)
 
             coinbase_tx = Transaction(
                 from_addr="SYSTEM",
-                to_addr=miner_address,
+                to_addr=self.node_address,
                 amount=10,
-                public_key="0000000000000000000000000000000000000000000000000000000000000000",
-                signature="0000000000000000000000000000000000000000000000000000000000000000",
+                public_key="0" * 64,
+                signature="0" * 64,
                 tx_type=TRANSACTION_TYPE.COINBASE,
                 timestamp=block_timestamp
             )
@@ -231,7 +236,8 @@ class Blockchain:
 
     # -- Block and chain validation ----------------------------------------
 
-    def validate_block(self, block: Block, previous_block: Block = None, external_balances: dict = None, is_full_chain_validation: bool = False):
+    def validate_block(self, block: Block, previous_block: Block = None, external_balances: dict = None,
+                       is_full_chain_validation: bool = False):
         if block.index < 0: return False
         if block.timestamp <= 0: return False
         if block.transactions is None: return False
@@ -255,9 +261,6 @@ class Blockchain:
         if block.prev_hash != previous_block.hash: return False
         if block.timestamp <= previous_block.timestamp: return False
 
-        current_time_ms = int(time.time() * 1000)
-        if block.timestamp > current_time_ms + 60000: return False
-
         if len(block.transactions) == 0: return False
 
         def get_tx_field(tx, field):
@@ -269,29 +272,28 @@ class Blockchain:
         if get_tx_field(first_tx, 'from') != "SYSTEM": return False
         if int(get_tx_field(first_tx, 'amount')) != 10: return False
         if get_tx_field(first_tx, 'timestamp') != block.timestamp: return False
+        if get_tx_field(first_tx, 'publicKey') != "0" * 64: return False
+        if get_tx_field(first_tx, 'signature') != "0" * 64: return False
 
         coinbase_count = sum(1 for tx in block.transactions if get_tx_field(tx, 'type') == TRANSACTION_TYPE.COINBASE)
         if coinbase_count != 1: return False
 
-        # --- NUEVA SIMULACIÓN DE ESTADO Y VALIDACIÓN ESTRICTA ---
+
         simulated_balances = external_balances.copy() if external_balances is not None else {}
 
         def get_simulated_balance(addr):
             if addr not in simulated_balances:
                 if is_full_chain_validation:
-                    # Si validamos una cadena entera desde 0, el balance base es 0
                     simulated_balances[addr] = 0
                 else:
-                    # Si validamos un solo bloque nuevo, usamos nuestra blockchain como base
                     simulated_balances[addr] = self.get_chain_balance(addr)
             return simulated_balances[addr]
 
-        # 1. Sumamos la recompensa de minado de la COINBASE al nodo minero
         miner_addr = get_tx_field(first_tx, 'to')
         miner_amount = int(get_tx_field(first_tx, 'amount'))
         simulated_balances[miner_addr] = get_simulated_balance(miner_addr) + miner_amount
 
-        # 2. Validamos el resto de las transacciones (TRANSFER)
+
         for tx in block.transactions[1:]:
             if get_tx_field(tx, 'type') != TRANSACTION_TYPE.TRANSFER: return False
 
@@ -304,21 +306,21 @@ class Blockchain:
             else:
                 tx_obj = tx
 
-            # Validación de propiedades intrínsecas
+
             if not self._validate_basic_rules(tx_obj): return False
             if not self._validate_ownership(tx_obj): return False
             if not self._validate_signature(tx_obj): return False
 
-            # Chequeamos balance suficiente basándonos EXCLUSIVAMENTE en el estado acumulado
+
             sender_balance = get_simulated_balance(tx_obj.from_addr)
             if sender_balance < tx_obj.amount:
                 return False
 
-            # Actualizamos el estado para la siguiente transacción en el mismo bloque
+
             simulated_balances[tx_obj.from_addr] -= tx_obj.amount
             simulated_balances[tx_obj.to_addr] = get_simulated_balance(tx_obj.to_addr) + tx_obj.amount
 
-        # Guardar estado por si estamos validando múltiples bloques (validate_chain)
+
         if external_balances is not None:
             external_balances.update(simulated_balances)
 
@@ -335,7 +337,8 @@ class Blockchain:
 
         for i in range(1, len(chain)):
             # Validamos cada bloque suministrando los balances arrastrados
-            if not self.validate_block(chain[i], chain[i - 1], external_balances=state_balances, is_full_chain_validation=True):
+            if not self.validate_block(chain[i], chain[i - 1], external_balances=state_balances,
+                                       is_full_chain_validation=True):
                 return False
 
         return True
@@ -355,7 +358,6 @@ class Blockchain:
         with self.lock:
             block_hash = block.hash
 
-            # Check cache to avoid gossip loops
             if block_hash in self.seen_blocks:
                 return False
 
@@ -366,14 +368,11 @@ class Blockchain:
             self.chain.append(block)
             self.seen_blocks.add(block_hash)
 
-            # Remove mined transactions from mempool
             mined_tx_ids = [tx["id"] if isinstance(tx, dict) else tx.id for tx in block.transactions]
             self.pending_transactions = [
                 tx for tx in self.pending_transactions
                 if (tx.get("id") if isinstance(tx, dict) else getattr(tx, "id")) not in mined_tx_ids
             ]
-
-        # Successfully added to chain, broadcast to peers
         threading.Thread(target=self.broadcast_block, args=(block,), daemon=True).start()
         return True
 

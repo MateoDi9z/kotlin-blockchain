@@ -47,7 +47,7 @@ def register_peer_handler(args):
     try:
         x = http_requests.post(
             f"{args[0]}/peers", 
-            json={"peer": my_url},
+            json={"url": my_url},
             timeout=5) 
         
     except Exception as e:

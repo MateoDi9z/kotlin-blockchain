@@ -171,8 +171,8 @@ def node_status():
     return ApiResponse().ok({
         "node": {
             "url": f"http://{get_my_ip()}:{blockchain.port}",
-            "address": "0x0000000000000000000000000000000000000000",
-            "publickey": "0000000000000000000000000000000000000000000000000000000000000000"
+            "address": blockchain.node_address,
+            "publickey": blockchain.node_public_key
         },
         "chain": {
             "length": chain_length,
