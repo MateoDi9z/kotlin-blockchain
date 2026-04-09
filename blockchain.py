@@ -77,13 +77,12 @@ class Blockchain:
         with self.lock:
             block_timestamp = int(time.time() * 1000)
 
-            # La recompensa ahora va a la wallet real del nodo
             coinbase_tx = Transaction(
                 from_addr="SYSTEM",
                 to_addr=self.node_address,
                 amount=10,
-                public_key="00000....00",
-                signature="000.....000",
+                public_key="0" * 64,
+                signature="0" * 64,
                 tx_type=TRANSACTION_TYPE.COINBASE,
                 timestamp=block_timestamp
             )
@@ -273,8 +272,8 @@ class Blockchain:
         if get_tx_field(first_tx, 'from') != "SYSTEM": return False
         if int(get_tx_field(first_tx, 'amount')) != 10: return False
         if get_tx_field(first_tx, 'timestamp') != block.timestamp: return False
-        if get_tx_field(first_tx, 'publicKey') != "00000....00": return False
-        if get_tx_field(first_tx, 'signature') != "000.....000": return False
+        if get_tx_field(first_tx, 'publicKey') != "0" * 64: return False
+        if get_tx_field(first_tx, 'signature') != "0" * 64: return False
 
         coinbase_count = sum(1 for tx in block.transactions if get_tx_field(tx, 'type') == TRANSACTION_TYPE.COINBASE)
         if coinbase_count != 1: return False
